@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Despertar</title>
+  <style>
+    body {
+      font-family: 'Comic Sans MS', cursive, sans-serif;
+      margin: 0;
+      padding: 2rem;
+      background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+      color: #333;
+      text-align: center;
+    }
+
+    #cocina-cerrada {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      background: black;
+      color: white;
+      font-size: clamp(2rem, 10vw, 8rem);
+      font-family: 'Courier New', monospace;
+      text-transform: uppercase;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    #cerrada-video {
+      position: absolute;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      z-index: -1;
+    }
+
+    #wake-button {
+      font-size: 2rem;
+      padding: 1rem 3rem;
+      border: none;
+      border-radius: 50px;
+      background: #ff4b2b;
+      color: white;
+      cursor: pointer;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+      margin-bottom: 2rem;
+    }
+
+    #meal-times {
+      max-width: 400px;
+      margin: 0 auto;
+      font-size: 1.5rem;
+    }
+
+    .meal-block {
+      background: #fffcee;
+      border-radius: 15px;
+      padding: 1rem;
+      margin: 1rem 0;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      position: relative;
+    }
+
+    .countdown {
+      font-weight: bold;
+      color: #444;
+      margin-top: 0.5rem;
+    }
+
+    .action-btn {
+      margin-top: 1rem;
+      font-size: 1.2rem;
+      padding: 0.6rem 1.2rem;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      background-color: #4caf50;
+      color: white;
+    }
+
+    .status-icon {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      font-size: 2rem;
+    }
+
+    .status-icon.missed {
+      color: red;
+    }
+
+    .status-icon.done {
+      color: green;
+    }
+  </style>
+</head>
+<body>
+
+<div id="cocina-cerrada">
+  <video id="cerrada-video" autoplay muted loop>
+    <source src="your-video.mp4" type="video/mp4" />
+  </video>
+  Cocina Cerrada
+</div>
+
+<button id="wake-button">¡Despertamos!</button>
+
+<div id="meal-times"></div>
+
+<audio id="alarm-sound" src="cute.mp3" preload="auto"></audio>
+
+<script>
+(async function() {
+  const wakeBtn = document.getElementById('wake-button');
+  const mealTimesDiv = document.getElementById('meal-times');
+  const cocinaCerrada = document.getElementById('cocina-cerrada');
+  const alarmSound = document.getElementById('alarm-sound');
+
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxREKTmoKsHUgC0UbnYQmyug7VvySOU5k4JiJg1EFb5L4FQoozpI8YB5c2nqtfKPYkMrw/exec';
+  const GOOGLE_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfqhAxYZX-dYDBQySEUtxIpXmzMTRzYw83KFi20qkMC8gF21A/formResponse';
+  const allowedLateMinutes = 40;
+  const alarmDurationMs = 5 * 60 * 1000;
+
+  let meals = [];
+  let mealStatus = [];
+  let countdownIntervals = [];
+  let alarmPlayedFor = [];
+
+  function resetState() {
+    meals = [];
+    mealStatus = [];
+    countdownIntervals.forEach(clearInterval);
+    mealTimesDiv.innerHTML = '';
+    wakeBtn.style.display = 'inline-block';
+    cocinaCerrada.style.display = 'none';
+    localStorage.removeItem('mealStatus');
+    localStorage.removeItem('mealTimes');
+    localStorage.removeItem('lastResetDate');
+  }
+
+  function checkDailyReset() {
+    const lastReset = localStorage.getItem('lastResetDate');
+    const today = new Date().toDateString();
+    if (lastReset !== today) {
+      resetState();
+    }
+  }
+
+  function formatTime(date) {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function parseMealTime(str) {
+    const [h, m] = str.split(':').map(Number);
+    const d = new Date();
+    d.setHours(h, m, 0, 0);
+    return d;
+  }
+
+  function getTimeDiffString(ms) {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes.toString().padStart(2,'0')}:${seconds.toString().padStart(2,'0')}`;
+  }
+
+  function playAlarm() {
+    alarmSound.play();
+    setTimeout(() => alarmSound.pause(), alarmDurationMs);
+  }
+
+  function submitToGoogleForm(mealIndex) {
+    const formData = new FormData();
+    const today = new Date().toISOString().split('T')[0];
+
+    formData.append("entry.1742440048", today);       // Fecha
+    formData.append("entry.530673272", `Comida ${mealIndex + 1}`); // Tipo
+    formData.append("entry.916852138", "Dadiva");
+    formData.append("entry.916852138", "Cypher");
+    formData.append("entry.916852138", "Harbinjer");
+    formData.append("entry.916852138", "Evyr");
+    formData.append("entry.867522782", "comido");
+
+    fetch(GOOGLE_FORM_URL, {
+      method: "POST",
+      mode: "no-cors",
+      body: formData
+    });
+  }
+
+  function showCocinaCerrada() {
+    cocinaCerrada.style.display = 'flex';
+    mealTimesDiv.style.display = 'none';
+    wakeBtn.style.display = 'none';
+  }
+
+  function createMealBlock(index, timeStr) {
+    const container = document.createElement('div');
+    container.classList.add('meal-block');
+
+    const mealLabel = document.createElement('div');
+    mealLabel.textContent = `Comida ${index + 1}: ${timeStr}`;
+    container.appendChild(mealLabel);
+
+    const countdown = document.createElement('div');
+    countdown.classList.add('countdown');
+    container.appendChild(countdown);
+
+    const actionBtn = document.createElement('button');
+    actionBtn.classList.add('action-btn');
+    actionBtn.textContent = 'Ir a Comer';
+    actionBtn.style.display = 'none';
+    container.appendChild(actionBtn);
+
+    const statusIcon = document.createElement('div');
+    statusIcon.classList.add('status-icon');
+    container.appendChild(statusIcon);
+
+    actionBtn.addEventListener('click', () => {
+      mealStatus[index] = 'done';
+      saveStatus();
+      submitToGoogleForm(index);
+      updateMealBlocks();
+    });
+
+    return { container, countdown, actionBtn, statusIcon };
+  }
+
+  function saveStatus() {
+    localStorage.setItem('mealStatus', JSON.stringify(mealStatus));
+  }
+
+  function loadStatus() {
+    const s = localStorage.getItem('mealStatus');
+    if (s) mealStatus = JSON.parse(s);
+  }
+
+  function updateMealBlocks() {
+    mealTimesDiv.innerHTML = '';
+    const now = new Date();
+    let allFinished = true;
+
+    meals.forEach((mealTimeStr, i) => {
+      const { container, countdown, actionBtn, statusIcon } = createMealBlock(i, mealTimeStr);
+      const mealDate = parseMealTime(mealTimeStr);
+      const diffMs = mealDate - now;
+
+      if (!mealStatus[i]) mealStatus[i] = 'pending';
+
+      if (mealStatus[i] === 'done') {
+        countdown.textContent = '¡Comido!';
+        actionBtn.style.display = 'none';
+        statusIcon.textContent = '✅';
+        statusIcon.classList.add('done');
+      } else if (mealStatus[i] === 'missed') {
+        countdown.textContent = 'Perdido';
+        actionBtn.style.display = 'none';
+        statusIcon.textContent = '❌';
+        statusIcon.classList.add('missed');
+      } else {
+        allFinished = false;
+        if (diffMs > 0) {
+          countdown.textContent = 'En ' + getTimeDiffString(diffMs);
+        } else {
+          const lateMs = now - mealDate;
+          if (lateMs < allowedLateMinutes * 60 * 1000) {
+            countdown.textContent = '¡Hora de comer!';
+            actionBtn.style.display = 'inline-block';
+            if (!alarmPlayedFor[i]) {
+              playAlarm();
+              alarmPlayedFor[i] = true;
+            }
+          } else {
+            mealStatus[i] = 'missed';
+            saveStatus();
+            countdown.textContent = 'Perdido';
+            statusIcon.textContent = '❌';
+            statusIcon.classList.add('missed');
+          }
+        }
+      }
+
+      mealTimesDiv.appendChild(container);
+    });
+
+    if (allFinished) showCocinaCerrada();
+  }
+
+  async function onWakeClick() {
+    wakeBtn.disabled = true;
+    wakeBtn.textContent = 'Cargando...';
+
+    try {
+      const resp = await fetch(APPS_SCRIPT_URL);
+      const data = await resp.json();
+
+      if (!data.meals || data.meals.length !== 4) throw new Error("Horario inválido");
+
+      meals = data.meals;
+      mealStatus = ['pending', 'pending', 'pending', 'pending'];
+
+      localStorage.setItem('mealTimes', JSON.stringify(meals));
+      localStorage.setItem('mealStatus', JSON.stringify(mealStatus));
+      localStorage.setItem('lastResetDate', new Date().toDateString());
+
+      wakeBtn.style.display = 'none';
+      updateMealBlocks();
+      countdownIntervals.push(setInterval(updateMealBlocks, 1000));
+
+    } catch (err) {
+      alert("Error al obtener horarios: " + err.message);
+      wakeBtn.disabled = false;
+      wakeBtn.textContent = '¡Despertamos!';
+    }
+  }
+
+  function loadFromStorage() {
+    const stored = localStorage.getItem('mealTimes');
+    if (stored) meals = JSON.parse(stored);
+    loadStatus();
+    if (meals.length === 4) {
+      wakeBtn.style.display = 'none';
+      updateMealBlocks();
+      countdownIntervals.push(setInterval(updateMealBlocks, 1000));
+    }
+  }
+
+  checkDailyReset();
+  loadFromStorage();
+  wakeBtn.addEventListener('click', onWakeClick);
+})();
+</script>
+
+</body>
+</html>
