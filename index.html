@@ -1,189 +1,224 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>¡Despertamos!</title>
+  <meta charset="UTF-8">
+  <title>Despertamos</title>
   <style>
     body {
       font-family: 'Comic Sans MS', cursive;
-      margin: 0;
-      padding: 2rem;
-      background: linear-gradient(135deg, #ffecd2, #fcb69f);
+      background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
       text-align: center;
+      padding: 2rem;
     }
-    button {
+    #wakeBtn {
       font-size: 2rem;
-      padding: 1rem 2rem;
-      background-color: #ff4b2b;
-      color: white;
+      padding: 1rem 3rem;
       border: none;
-      border-radius: 40px;
+      border-radius: 50px;
+      background: #ff4b2b;
+      color: white;
       cursor: pointer;
+      margin-bottom: 2rem;
     }
     .meal {
-      margin: 1.5rem auto;
+      background: #fffcee;
+      border-radius: 15px;
       padding: 1rem;
+      margin: 1rem auto;
+      width: 90%;
       max-width: 400px;
-      background: #fff;
-      border-radius: 20px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      position: relative;
     }
-    .meal h3 {
-      margin: 0.5rem 0;
+    .meal h2 {
+      margin: 0;
     }
-    .action-btn {
-      margin-top: 0.5rem;
-      background: #4CAF50;
+    .meal button {
+      margin-top: 10px;
+      padding: 0.5rem 1.2rem;
+      font-size: 1.1rem;
+      background: #4caf50;
       color: white;
-      padding: 0.5rem 1rem;
       border: none;
-      border-radius: 10px;
-      font-size: 1rem;
+      border-radius: 8px;
+      cursor: pointer;
     }
-    .status {
+    .status-icon {
       font-size: 2rem;
+      position: absolute;
+      right: 15px;
+      top: 15px;
     }
-    .missed {
-      color: red;
-    }
-    .done {
-      color: green;
-    }
-    #cocina-cerrada {
+    .missed { color: red; }
+    .done { color: green; }
+    #cocinaCerrada {
       display: none;
       position: fixed;
-      top: 0; left: 0; width: 100vw; height: 100vh;
-      background: black;
-      color: red;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #111;
+      color: #ff4444;
       font-size: 4rem;
+      display: flex;
       justify-content: center;
       align-items: center;
-      font-weight: bold;
-      z-index: 10;
+      z-index: 9999;
+      border: 15px dashed #ff4444;
+      text-shadow: 0 0 10px #ff4444;
     }
   </style>
 </head>
 <body>
 
-<h1>¡Despertamos!</h1>
-<button id="wakeBtn">¡Empezar el día!</button>
-<div id="mealsContainer"></div>
-<div id="cocina-cerrada">🍽 Cocina Cerrada 🍽</div>
-<audio id="alarm" src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" preload="auto"></audio>
+  <button id="wakeBtn">¡Despertamos!</button>
+  <div id="mealContainer"></div>
+  <div id="cocinaCerrada">Cocina Cerrada</div>
+
+  <audio id="alarm" src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" preload="auto"></audio>
 
 <script>
-const GOOGLE_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSfqhAxYZX-dYDBQySEUtxIpXmzMTRzYw83KFi20qkMC8gF21A/formResponse";
-const ENTRY_DATE = "entry.1742440048";
-const ENTRY_MEAL = "entry.530673272";
-const ENTRY_PARTICIPANTS = "entry.916852138";
-const ENTRY_STATUS = "entry.867522782";
+  const formUrl = "https://docs.google.com/forms/d/e/1FAIpQLSfqhAxYZX-dYDBQySEUtxIpXmzMTRzYw83KFi20qkMC8gF21A/formResponse";
+  const ENTRY_DATE = "entry.1742440048";
+  const ENTRY_MEAL = "entry.867522782";
+  const ENTRY_PARTICIPANTS = "entry.916852138";
+  const ENTRY_SESSION = "entry.530673272";
 
-const participants = ["Dadiva", "Cypher", "Harbinjer", "Evyr"];
-let meals = [];
-let mealStatus = [];
+  const LOCAL_STORAGE_KEY = "despertamos_schedule";
+  const STATUS_KEY = "despertamos_status";
+  const DATE_KEY = "despertamos_date";
 
-function formatTime(date) {
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
+  let meals = [];
+  let mealStatus = [];
 
-function addHours(date, h) {
-  let d = new Date(date);
-  d.setHours(d.getHours() + h);
-  return d;
-}
-
-function playAlarm() {
-  const alarm = document.getElementById("alarm");
-  alarm.play();
-  setTimeout(() => alarm.pause(), 5 * 60 * 1000);
-}
-
-function submitMealData(index, status) {
-  const mealTime = meals[index];
-  const dateStr = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-
-  const formData = new URLSearchParams();
-  formData.append(ENTRY_DATE, dateStr);
-  formData.append(ENTRY_MEAL, `Comida ${index + 1}`);
-  participants.forEach(p => formData.append(ENTRY_PARTICIPANTS, p));
-  formData.append(ENTRY_STATUS, status);
-
-  fetch(GOOGLE_FORM_URL, {
-    method: "POST",
-    mode: "no-cors",
-    body: formData
-  }).then(() => {
-    console.log(`📬 Sent ${status} for Meal ${index + 1}`);
-  });
-}
-
-function renderMeals() {
-  const container = document.getElementById("mealsContainer");
-  container.innerHTML = "";
-
-  const now = new Date();
-
-  let allDone = true;
-
-  meals.forEach((time, index) => {
-    const div = document.createElement("div");
-    div.className = "meal";
-    const timeDiff = new Date(time) - now;
-    const minsLate = (now - new Date(time)) / (1000 * 60);
-
-    div.innerHTML = `
-      <h3>Comida ${index + 1}: ${formatTime(new Date(time))}</h3>
-      <div id="status${index}" class="status">⏳</div>
-    `;
-
-    if (mealStatus[index] === "done") {
-      div.querySelector(".status").textContent = "✅";
-      div.querySelector(".status").classList.add("done");
-    } else if (mealStatus[index] === "missed") {
-      div.querySelector(".status").textContent = "❌";
-      div.querySelector(".status").classList.add("missed");
-    } else if (timeDiff <= 0 && minsLate <= 40) {
-      const btn = document.createElement("button");
-      btn.className = "action-btn";
-      btn.textContent = "Ir a Comer";
-      btn.onclick = () => {
-        mealStatus[index] = "done";
-        submitMealData(index, "comido");
-        renderMeals();
-        window.open("https://temporizador-para-nenes.glitch.me", "_blank");
-      };
-      div.appendChild(btn);
-      playAlarm();
-      allDone = false;
-    } else if (minsLate > 40 && mealStatus[index] !== "done") {
-      mealStatus[index] = "missed";
-      submitMealData(index, "perdido");
-      renderMeals();
-    } else {
-      allDone = false;
-    }
-
-    container.appendChild(div);
-  });
-
-  if (allDone) {
-    document.getElementById("cocina-cerrada").style.display = "flex";
+  function addHours(date, h) {
+    const d = new Date(date);
+    d.setHours(d.getHours() + h);
+    return d;
   }
-}
 
-document.getElementById("wakeBtn").addEventListener("click", () => {
-  const now = new Date();
-  meals = [
-    addHours(now, 1),
-    addHours(now, 5),
-    addHours(now, 9),
-    addHours(now, 13)
-  ];
-  mealStatus = [null, null, null, null];
-  renderMeals();
-  setInterval(renderMeals, 60 * 1000);
-});
+  function formatTime(d) {
+    return d.toTimeString().slice(0, 5);
+  }
+
+  function getCurrentDateStr() {
+    return new Date().toISOString().split("T")[0];
+  }
+
+  function renderMeals() {
+    const container = document.getElementById("mealContainer");
+    const now = new Date();
+    container.innerHTML = "";
+
+    meals.forEach((mealTime, i) => {
+      const block = document.createElement("div");
+      block.className = "meal";
+      const title = document.createElement("h2");
+      title.textContent = `Comida ${i+1} - ${formatTime(new Date(mealTime))}`;
+      block.appendChild(title);
+
+      const btn = document.createElement("button");
+      btn.textContent = "Ir a Comer";
+      const diff = new Date() - new Date(mealTime);
+
+      const status = document.createElement("div");
+      status.className = "status-icon";
+
+      if (mealStatus[i] === "done") {
+        status.textContent = "✅";
+        status.classList.add("done");
+        btn.style.display = "none";
+      } else if (mealStatus[i] === "missed") {
+        status.textContent = "❌";
+        status.classList.add("missed");
+        btn.style.display = "none";
+      } else if (diff >= 0 && diff <= 40 * 60 * 1000) {
+        btn.style.display = "inline-block";
+        btn.onclick = () => {
+          mealStatus[i] = "done";
+          saveToLocalStorage();
+          sendForm(i);
+          renderMeals();
+          document.getElementById("alarm").play();
+          window.open("https://temporizador-para-nenes.glitch.me", "_blank");
+        };
+      } else if (diff > 40 * 60 * 1000) {
+        mealStatus[i] = "missed";
+        saveToLocalStorage();
+        status.textContent = "❌";
+        status.classList.add("missed");
+        btn.style.display = "none";
+      } else {
+        btn.style.display = "none";
+      }
+
+      block.appendChild(btn);
+      block.appendChild(status);
+      container.appendChild(block);
+    });
+
+    if (mealStatus.every(s => s === "done" || s === "missed")) {
+      document.getElementById("cocinaCerrada").style.display = "flex";
+    } else {
+      document.getElementById("cocinaCerrada").style.display = "none";
+    }
+  }
+
+  function saveToLocalStorage() {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(meals));
+    localStorage.setItem(STATUS_KEY, JSON.stringify(mealStatus));
+    localStorage.setItem(DATE_KEY, new Date().toDateString());
+  }
+
+  function loadFromLocalStorage() {
+    const savedDate = localStorage.getItem(DATE_KEY);
+    if (savedDate === new Date().toDateString()) {
+      const savedMeals = localStorage.getItem(LOCAL_STORAGE_KEY);
+      const savedStatus = localStorage.getItem(STATUS_KEY);
+      if (savedMeals && savedStatus) {
+        meals = JSON.parse(savedMeals);
+        mealStatus = JSON.parse(savedStatus);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function sendForm(mealIndex) {
+    const formData = new FormData();
+    formData.append(ENTRY_DATE, getCurrentDateStr());
+    formData.append(ENTRY_MEAL, "comido");
+    formData.append(ENTRY_PARTICIPANTS, "Dadiva, Cypher, Harbinjer, Evyr");
+    formData.append(ENTRY_SESSION, `Comida ${mealIndex + 1}`);
+
+    fetch(formUrl, {
+      method: "POST",
+      mode: "no-cors",
+      body: formData
+    }).then(() => console.log("✅ Form sent")).catch(e => console.error("❌ Error:", e));
+  }
+
+  document.getElementById("wakeBtn").addEventListener("click", () => {
+    const now = new Date();
+    meals = [addHours(now, 1), addHours(now, 5), addHours(now, 9), addHours(now, 13)];
+    mealStatus = [null, null, null, null];
+    saveToLocalStorage();
+    renderMeals();
+    setInterval(renderMeals, 60000);
+    document.getElementById("wakeBtn").style.display = "none";
+  });
+
+  window.addEventListener("DOMContentLoaded", () => {
+    const loaded = loadFromLocalStorage();
+    const now = new Date();
+    if (!loaded && now.getHours() < 7) {
+      document.getElementById("wakeBtn").style.display = "none";
+    } else if (loaded) {
+      renderMeals();
+      setInterval(renderMeals, 60000);
+      document.getElementById("wakeBtn").style.display = "none";
+    } else {
+      document.getElementById("wakeBtn").style.display = "inline-block";
+    }
+  });
 </script>
 </body>
 </html>
