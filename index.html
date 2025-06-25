@@ -22,43 +22,29 @@
     .meal-block {
       background: #fffcee;
       border-radius: 12px; padding: 1rem;
-      margin-bottom: 1rem;
-      position: relative;
+      margin-bottom: 1rem; position: relative;
       box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
     .countdown { font-weight: bold; color: #333; }
     .action-btn {
       margin-top: 1rem; padding: .5rem 1rem;
-      font-size: 1.1rem;
-      background: #4caf50; color: white;
-      border: none; border-radius: 8px; cursor: pointer;
+      font-size: 1.1rem; background: #4caf50;
+      color: white; border: none; border-radius: 8px;
+      cursor: pointer;
     }
-    .status-icon {
-      position: absolute; top: 10px; right: 10px;
-      font-size: 1.5rem;
-    }
+    .status-icon { position: absolute; top: 10px; right: 10px; font-size: 1.5rem; }
     .done { color: green; }
     .missed { color: red; }
     #cerrada-video {
-      display: none;
-      position: fixed;
-      top: 0; left: 0;
-      width: 100vw; height: 100vh;
-      object-fit: cover;
-      z-index: -1;
+      display: none; position: fixed; top: 0; left: 0;
+      width: 100vw; height: 100vh; object-fit: cover; z-index: -1;
     }
     #cocina-cerrada {
-      display: none;
-      position: fixed;
-      top: 0; left: 0;
+      display: none; position: fixed; top: 0; left: 0;
       width: 100vw; height: 100vh;
       background: rgba(0,0,0,0.6);
-      color: white;
-      font-size: 4rem;
-      z-index: 10;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      color: white; font-size: 4rem; z-index: 10;
+      display: flex; align-items: center; justify-content: center;
     }
   </style>
 </head>
@@ -74,178 +60,177 @@
   <audio id="alarm-sound" src="cute.mp3" preload="auto"></audio>
 
   <script>
-  (async () => {
-    const wakeBtn = document.getElementById('wake-button');
-    const mealsDiv = document.getElementById('meal-times');
-    const cocinaDiv = document.getElementById('cocina-cerrada');
-    const video = document.getElementById('cerrada-video');
-    const alarm = document.getElementById('alarm-sound');
+    (async () => {
+      const wakeBtn = document.getElementById('wake-button');
+      const mealsDiv = document.getElementById('meal-times');
+      const cocinaDiv = document.getElementById('cocina-cerrada');
+      const video = document.getElementById('cerrada-video');
+      const alarm = document.getElementById('alarm-sound');
 
-    const API_URL = 'https://script.google.com/macros/library/d/1pJqV4QRRw7yJseMNTRviNv1C4-M-pSgI9zXjvkTtFdStRhPjTuRRsJYl/12';
-    const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfqhAxYZX-dYDBQySEUtxIpXmzMTRzYw83KFi20qkMC8gF21A/formResponse';
+      const API_URL = 'https://script.google.com/macros/library/d/1pJqV4QRRw7yJseMNTRviNv1C4-M-pSgI9zXjvkTtFdStRhPjTuRRsJYl/12';
+      const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfqhAxYZX-dYDBQySEUtxIpXmzMTRzYw83KFi20qkMC8gF21A/formResponse';
 
-    const entryDate = "entry.1742440048";
-    const entryMeal = "entry.530673272";
-    const entryParticipants = "entry.916852138";
-    const entryStatus = "entry.867522782";
+      const entryDate = "entry.1742440048";
+      const entryMeal = "entry.530673272";
+      const entryParticipants = "entry.916852138";
+      const entryStatus = "entry.867522782";
 
-    let meals = [];
-    let statusArr = [];
-    let alarmsPlayed = [];
+      let meals = [];
+      let statusArr = [];
+      let alarmsPlayed = [];
 
-    const now = new Date();
-    if (localStorage.lastDate === now.toDateString()) {
-      meals = JSON.parse(localStorage.meals || '[]');
-      statusArr = JSON.parse(localStorage.statusArr || '[]');
-    }
-
-    const saveState = () => {
-      localStorage.meals = JSON.stringify(meals);
-      localStorage.statusArr = JSON.stringify(statusArr);
-      localStorage.lastDate = new Date().toDateString();
-    };
-
-    const resetAll = () => {
-      meals = [];
-      statusArr = [];
-      localStorage.clear();
-      wakeBtn.style.display = 'block';
-      mealsDiv.innerHTML = '';
-      cocinaDiv.style.display = 'none';
-      video.pause();
-    };
-
-    const formatHM = ms => {
-      const minutes = Math.floor(ms/60000);
-      const seconds = Math.floor((ms % 60000)/1000);
-      return minutes.toString().padStart(2,'0') + ':' + seconds.toString().padStart(2,'0');
-    };
-
-    const parseHM = str => {
-      const [h,m] = str.split(':').map(Number);
-      const d = new Date();
-      d.setHours(h, m, 0, 0);
-      return d;
-    };
-
-    const fetchMeals = async () => {
-      const resp = await fetch(API_URL);
-      if (!resp.ok) throw new Error('WebApp error');
-      const data = await resp.json();
-      if (!data.meals || data.meals.length !== 4) throw new Error('Invalid meals');
-      meals = data.meals;
-      statusArr = ['pending','pending','pending','pending'];
-      alarmsPlayed = [];
-      saveState();
-      render();
-    };
-
-    const submitForm = (mealIdx) => {
-      const fd = new FormData();
-      fd.append(entryDate, new Date().toISOString().split('T')[0]);
-      fd.append(entryMeal, `Comida ${mealIdx+1}`);
-      ['Dadiva','Cypher','Harbinjer','Evyr'].forEach(p => fd.append(entryParticipants, p));
-      fd.append(entryStatus, 'comido');
-
-      navigator.sendBeacon(FORM_URL, fd);
-    };
-
-    const render = () => {
-      mealsDiv.innerHTML = '';
-      let allDone = true;
       const now = new Date();
+      if (localStorage.lastDate === now.toDateString()) {
+        meals = JSON.parse(localStorage.meals || '[]');
+        statusArr = JSON.parse(localStorage.statusArr || '[]');
+      }
 
-      meals.forEach((mt, idx) => {
-        const block = document.createElement('div');
-        block.className = 'meal-block';
-        block.innerHTML = `<div>Comida ${idx+1}: ${mt}</div>`;
-        const countdown = document.createElement('div');
-        countdown.className = 'countdown';
-        const btn = document.createElement('button');
-        btn.className = 'action-btn';
-        btn.textContent = 'Ir a Comer';
-        btn.style.display = 'none';
-        const icon = document.createElement('div');
-        icon.className = 'status-icon';
+      const saveState = () => {
+        localStorage.meals = JSON.stringify(meals);
+        localStorage.statusArr = JSON.stringify(statusArr);
+        localStorage.lastDate = new Date().toDateString();
+      };
 
-        const mealDate = parseHM(mt);
-        const diff = now - mealDate;
+      const resetAll = () => {
+        meals = [];
+        statusArr = [];
+        localStorage.clear();
+        wakeBtn.style.display = 'block';
+        mealsDiv.innerHTML = '';
+        cocinaDiv.style.display = 'none';
+        video.pause();
+      };
 
-        if (statusArr[idx] === 'done') {
-          countdown.textContent = '✅ Comido';
-          icon.textContent = '✅';
-          icon.classList.add('done');
-        } else if (statusArr[idx] === 'missed') {
-          countdown.textContent = '❌ Perdido';
-          icon.textContent = '❌';
-          icon.classList.add('missed');
-        } else {
-          allDone = false;
-          if (diff < 0) {
-            countdown.textContent = `En ${formatHM(-diff)}`;
-          } else if (diff < 40*60000) {
-            countdown.textContent = '¡Hora de comer!';
-            btn.style.display = 'inline-block';
-            if (!alarmsPlayed[idx]) {
-              alarm.play();
-              alarmsPlayed[idx] = true;
-            }
-          } else {
-            statusArr[idx] = 'missed';
-            saveState();
+      const formatHM = ms => {
+        const minutes = Math.floor(ms/60000);
+        const seconds = Math.floor((ms % 60000)/1000);
+        return minutes.toString().padStart(2,'0') + ':' + seconds.toString().padStart(2,'0');
+      };
+
+      const parseHM = str => {
+        const [h,m] = str.split(':').map(Number);
+        const d = new Date();
+        d.setHours(h, m, 0, 0);
+        return d;
+      };
+
+      const fetchMeals = async () => {
+        const resp = await fetch(API_URL);
+        if (!resp.ok) throw new Error('WebApp error');
+        const data = await resp.json();
+        if (!data.meals || data.meals.length !== 4) throw new Error('Invalid meals');
+        meals = data.meals;
+        statusArr = ['pending','pending','pending','pending'];
+        alarmsPlayed = [];
+        saveState();
+        render();
+      };
+
+      const submitForm = (mealIdx) => {
+        const fd = new FormData();
+        fd.append(entryDate, new Date().toISOString().split('T')[0]);
+        fd.append(entryMeal, `Comida ${mealIdx+1}`);
+        ['Dadiva','Cypher','Harbinjer','Evyr'].forEach(p => fd.append(entryParticipants, p));
+        fd.append(entryStatus, 'comido');
+        navigator.sendBeacon(FORM_URL, fd);
+      };
+
+      const render = () => {
+        mealsDiv.innerHTML = '';
+        let allDone = true;
+        const now = new Date();
+
+        meals.forEach((mt, idx) => {
+          const block = document.createElement('div');
+          block.className = 'meal-block';
+          block.innerHTML = `<div>Comida ${idx+1}: ${mt}</div>`;
+          const countdown = document.createElement('div');
+          countdown.className = 'countdown';
+          const btn = document.createElement('button');
+          btn.className = 'action-btn';
+          btn.textContent = 'Ir a Comer';
+          btn.style.display = 'none';
+          const icon = document.createElement('div');
+          icon.className = 'status-icon';
+
+          const mealDate = parseHM(mt);
+          const diff = now - mealDate;
+
+          if (statusArr[idx] === 'done') {
+            countdown.textContent = '✅ Comido';
+            icon.textContent = '✅';
+            icon.classList.add('done');
+          } else if (statusArr[idx] === 'missed') {
             countdown.textContent = '❌ Perdido';
             icon.textContent = '❌';
             icon.classList.add('missed');
+          } else {
+            allDone = false;
+            if (diff < 0) {
+              countdown.textContent = `En ${formatHM(-diff)}`;
+            } else if (diff < 40*60000) {
+              countdown.textContent = '¡Hora de comer!';
+              btn.style.display = 'inline-block';
+              if (!alarmsPlayed[idx]) {
+                alarm.play();
+                alarmsPlayed[idx] = true;
+              }
+            } else {
+              statusArr[idx] = 'missed';
+              saveState();
+              countdown.textContent = '❌ Perdido';
+              icon.textContent = '❌';
+              icon.classList.add('missed');
+            }
           }
+
+          btn.onclick = () => {
+            statusArr[idx] = 'done';
+            saveState();
+            submitForm(idx);
+            render();
+          };
+
+          block.append(countdown, btn, icon);
+          mealsDiv.appendChild(block);
+        });
+
+        if (allDone && meals.length === 4) {
+          cocinaDiv.style.display = 'flex';
+          video.style.display = 'block';
+          video.play();
         }
+      };
 
-        btn.onclick = () => {
-          statusArr[idx] = 'done';
-          saveState();
-          submitForm(idx);
-          render();
-        };
+      wakeBtn.onclick = async () => {
+        wakeBtn.disabled = true;
+        try {
+          await fetchMeals();
+        } catch(e) {
+          alert('Error: ' + e.message);
+          wakeBtn.disabled = false;
+        }
+      };
 
-        block.append(countdown, btn, icon);
-        mealsDiv.appendChild(block);
-      });
-
-      if (allDone && meals.length === 4) {
-        cocinaDiv.style.display = 'flex';
-        video.style.display = 'block';
-        video.play();
+      // **Corrected initialization logic**
+      if (meals.length === 4) {
+        wakeBtn.style.display = 'none';
+        render();
+        setInterval(render, 1000);
+      } else if (now.getHours() >= 7) {
+        wakeBtn.style.display = 'block';
+      } else {
+        wakeBtn.style.display = 'none';
       }
-    };
 
-    wakeBtn.onclick = async () => {
-      wakeBtn.disabled = true;
-      try {
-        await fetchMeals();
-      } catch(e) {
-        alert('Error: ' + e.message);
-        wakeBtn.disabled = false;
-      }
-    };
-
-    // Show previous meals if exists
-    if (meals.length === 4) {
-      wakeBtn.style.display = 'none';
-      render();
-      setInterval(render, 1000);
-    } else if (new Date().getHours() >= 7) {
-      wakeBtn.style.display = 'block';
-    } else {
-      wakeBtn.style.display = 'none';
-    }
-
-    // Reset after 7AM daily
-    setInterval(() => {
-      const now = new Date();
-      if (now.getHours() === 7 && now.getMinutes() === 0) {
-        resetAll();
-      }
-    }, 60000);
-  })();
+      setInterval(() => {
+        const now = new Date();
+        if (now.getHours() === 7 && now.getMinutes() === 0) {
+          resetAll();
+        }
+      }, 60000);
+    })();
   </script>
+
 </body>
 </html>
