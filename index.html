@@ -17,7 +17,7 @@
     display: none;
     position: fixed;
     top: 0; left: 0; width: 100vw; height: 100vh;
-    background: #111;
+    background: rgba(0, 0, 0, 0.6);
     color: #ff4444;
     font-size: clamp(2rem, 10vw, 8rem);
     font-family: 'Courier New', monospace;
@@ -95,9 +95,7 @@
 
 <video id="cocina-video" src="cocina_cerrada.mp4" muted loop></video>
 
-<div id="cocina-cerrada">
-  Cocina Cerrada
-</div>
+<div id="cocina-cerrada">Cocina Cerrada</div>
 
 <button id="wake-button">¡Despertamos!</button>
 
@@ -113,260 +111,81 @@
   const cocinaVideo = document.getElementById('cocina-video');
   const alarmSound = document.getElementById('alarm-sound');
 
-  // Google Form URL for meal logging
-  const GOOGLE_FORM_ACTION_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfqhAxYZX-dYDBQySEUtxIpXmzMTRzYw83KFi20qkMC8gF21A/formResponse';
+  const GOOGLE_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfqhAxYZX-dYDBQySEUtxIpXmzMTRzYw83KFi20qkMC8gF21A/formResponse';
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/library/d/1pJqV4QRRw7yJseMNTRviNv1C4-M-pSgI9zXjvkTtFdStRhPjTuRRsJYl/12';
 
-  // Google Form entries (make sure these match your form input names)
-  const FORM_ENTRY_DATE = 'entry.1742440048';       // Date (YYYY-MM-DD)
-  const FORM_ENTRY_PARTICIPANTS = 'entry.916852138';// Participants (multiple selection)
-  const FORM_ENTRY_NAME = 'entry.530673272';        // Your field? (Optional)
-  const FORM_ENTRY_STATUS = 'entry.867522782';      // Status (e.g., 'comido' or 'perdido')
+  const allowedLateMinutes = 40;
+  const alarmDurationMs = 5 * 60 * 1000;
 
-  // Constants
-  const allowedLateMinutes = 40; // minutes after meal time button disappears and meal marked missed
-  const alarmDurationMs = 5 * 60 * 1000; // 5 minutes
-
-  // State
   let meals = [];
-  let statusArr = []; // 'pending', 'done', 'missed'
-  let countdownIntervals = [];
-  let alarmPlayedFor = [];
-
-  // Helpers
-  function saveState() {
-    localStorage.setItem('lastDate', new Date().toDateString());
-    localStorage.setItem('meals', JSON.stringify(meals));
-    localStorage.setItem('statusArr', JSON.stringify(statusArr));
-  }
-  function loadState() {
-    const savedMeals = JSON.parse(localStorage.getItem('meals') || '[]');
-    const savedStatus = JSON.parse(localStorage.getItem('statusArr') || '[]');
-    return { savedMeals, savedStatus };
-  }
-  function resetAll() {
-    meals = [];
-    statusArr = [];
-    alarmPlayedFor = [];
-    clearIntervals();
-    mealTimesDiv.innerHTML = '';
-    cocinaDiv.style.display = 'none';
-    cocinaVideo.style.display = 'none';
-    wakeBtn.style.display = 'inline-block';
-    localStorage.removeItem('lastDate');
-    localStorage.removeItem('meals');
-    localStorage.removeItem('statusArr');
-  }
-  function clearIntervals() {
-    countdownIntervals.forEach(clearInterval);
-    countdownIntervals = [];
-  }
+  let statusArr = [];
+  let countdowns = [];
+  let alarmsPlayed = [];
 
   function formatTime(date) {
     return date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', hour12: false});
   }
-
-  function parseMealTime(str) {
-    const [h, m] = str.split(':').map(Number);
+  function parseTime(str) {
+    const [h,m] = str.split(':').map(Number);
     const d = new Date();
     d.setHours(h, m, 0, 0);
     return d;
   }
-
-  function getTimeDiffString(ms) {
-    const totalSeconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes.toString().padStart(2,'0')}:${seconds.toString().padStart(2,'0')}`;
+  function diffString(ms) {
+    const min = Math.floor(ms/60000);
+    const sec = Math.floor((ms%60000)/1000);
+    return `${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
   }
 
-  // Submit meal status to Google Form
-  async function submitMealStatus(mealIndex) {
-    const dateStr = new Date().toISOString().slice(0,10); // YYYY-MM-DD
-    const participants = ['Dadiva', 'Cypher', 'Harbinjer', 'Evyr']; // Update to your real participants
-    const status = statusArr[mealIndex] === 'done' ? 'comido' : 'perdido';
-
-    // Prepare form data - note: this form has multiple entries for participants,
-    // so we append multiple entry.916852138 for each participant who ate
-    const formData = new URLSearchParams();
-    formData.append(FORM_ENTRY_DATE, dateStr);
-    formData.append(FORM_ENTRY_NAME, ''); // optional: can be empty or your app user
-    formData.append(FORM_ENTRY_STATUS, status);
-
-    // Append all participants — you can adapt to actually submit who ate this meal
-    // Here we send all participants, but you might want to send only those who pressed the button
-    participants.forEach(p => formData.append(FORM_ENTRY_PARTICIPANTS, p));
-
-    try {
-      await fetch(GOOGLE_FORM_ACTION_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: formData.toString()
-      });
-      console.log(`Meal ${mealIndex + 1} submitted with status: ${status}`);
-    } catch(err) {
-      console.error('Error submitting meal:', err);
-    }
+  function save() {
+    localStorage.setItem('meals', JSON.stringify(meals));
+    localStorage.setItem('statusArr', JSON.stringify(statusArr));
+    localStorage.setItem('lastDate', new Date().toDateString());
+  }
+  function load() {
+    meals = JSON.parse(localStorage.getItem('meals') || '[]');
+    statusArr = JSON.parse(localStorage.getItem('statusArr') || '[]');
   }
 
-  // Create meal block element and behavior
-  function createMealBlock(index, timeStr) {
-    const container = document.createElement('div');
-    container.classList.add('meal-block');
-
-    const mealLabel = document.createElement('div');
-    mealLabel.textContent = `Comida ${index + 1}: ${timeStr}`;
-    container.appendChild(mealLabel);
-
-    const countdown = document.createElement('div');
-    countdown.classList.add('countdown');
-    container.appendChild(countdown);
-
-    const actionBtn = document.createElement('button');
-    actionBtn.classList.add('action-btn');
-    actionBtn.textContent = 'Ir a Comer';
-    actionBtn.style.display = 'none';
-    container.appendChild(actionBtn);
-
-    const statusIcon = document.createElement('div');
-    statusIcon.classList.add('status-icon');
-    container.appendChild(statusIcon);
-
-    actionBtn.addEventListener('click', () => {
-      statusArr[index] = 'done';
-      saveState();
-      updateMealBlocks();
-      window.open('https://glitch.com/edit/#!/temporizador-para-nenes', '_blank');
-      submitMealStatus(index); // Submit form on button click
-    });
-
-    return { container, countdown, actionBtn, statusIcon };
+  function clearCountdowns() {
+    countdowns.forEach(clearInterval);
+    countdowns = [];
   }
 
-  // Update the meal blocks UI and logic
-  function updateMealBlocks() {
-    mealTimesDiv.innerHTML = '';
-    const now = new Date();
-
-    let allMealsFinished = true;
-
-    meals.forEach((mealTimeStr, i) => {
-      const { container, countdown, actionBtn, statusIcon } = createMealBlock(i, mealTimeStr);
-      const mealDate = parseMealTime(mealTimeStr);
-      const diffMs = mealDate - now;
-
-      if (!statusArr[i]) statusArr[i] = 'pending';
-
-      if (statusArr[i] === 'done') {
-        countdown.textContent = '¡Completado!';
-        actionBtn.style.display = 'none';
-        statusIcon.textContent = '✅';
-        statusIcon.classList.add('done');
-        statusIcon.classList.remove('missed');
-      } else if (statusArr[i] === 'missed') {
-        countdown.textContent = 'Perdido';
-        actionBtn.style.display = 'none';
-        statusIcon.textContent = '❌';
-        statusIcon.classList.add('missed');
-        statusIcon.classList.remove('done');
-      } else {
-        allMealsFinished = false;
-        if (diffMs > 0) {
-          countdown.textContent = 'Empieza en ' + getTimeDiffString(diffMs);
-          actionBtn.style.display = 'none';
-          statusIcon.textContent = '';
-        } else {
-          const lateMs = now - mealDate;
-          if (lateMs <= allowedLateMinutes * 60 * 1000) {
-            countdown.textContent = '¡Hora de comer!';
-            actionBtn.style.display = 'inline-block';
-            statusIcon.textContent = '';
-          } else {
-            statusArr[i] = 'missed';
-            saveState();
-            countdown.textContent = 'Perdido';
-            actionBtn.style.display = 'none';
-            statusIcon.textContent = '❌';
-            statusIcon.classList.add('missed');
-            statusIcon.classList.remove('done');
-            submitMealStatus(i); // Submit missed status
-          }
-        }
-      }
-
-      mealTimesDiv.appendChild(container);
-    });
-
-    if (allMealsFinished) {
-      showCocinaCerrada();
-    } else {
-      cocinaDiv.style.display = 'none';
-      cocinaVideo.style.display = 'none';
-      wakeBtn.style.display = 'none';
-      mealTimesDiv.style.display = 'block';
-    }
-  }
-
-  // Play alarm sound for 5 minutes
-  function playAlarm() {
-    alarmSound.play();
-    setTimeout(() => alarmSound.pause(), alarmDurationMs);
-  }
-
-  // Check if any alarm should play right now (only once per meal)
-  function checkForAlarms() {
-    const now = new Date();
-    meals.forEach((mealTimeStr, i) => {
-      const mealDate = parseMealTime(mealTimeStr);
-      if (!alarmPlayedFor[i] && now >= mealDate && now - mealDate < 60000) {
-        playAlarm();
-        alarmPlayedFor[i] = true;
-      }
+  function submitWakeForm() {
+    const date = new Date().toISOString().split('T')[0];
+    const time = new Date().toLocaleTimeString('es-ES', {hour12: false});
+    const form = new URLSearchParams();
+    form.append('entry.1742440048', date); // Fecha
+    form.append('entry.530673272', time); // Hora
+    form.append('entry.867522782', 'despertamos');
+    return fetch(GOOGLE_FORM_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form.toString()
     });
   }
 
-  // Show Cocina Cerrada screen with background video
-  function showCocinaCerrada() {
-    mealTimesDiv.style.display = 'none';
-    wakeBtn.style.display = 'none';
-    cocinaDiv.style.display = 'flex';
-    cocinaVideo.style.display = 'block';
-    cocinaVideo.play();
-  }
-
-  // Start update loop every second
-  function startLoop() {
-    clearIntervals();
-    countdownIntervals.push(setInterval(() => {
-      updateMealBlocks();
-      checkForAlarms();
-    }, 1000));
-  }
-
-  // Handle wake button click - fetch meal times from Apps Script Web App
-  async function onWakeButtonClick() {
+  async function onWakeClick() {
     wakeBtn.disabled = true;
     wakeBtn.textContent = 'Cargando...';
-
     try {
-      const APPS_SCRIPT_URL = 'https://script.google.com/macros/library/d/1pJqV4QRRw7yJseMNTRviNv1C4-M-pSgI9zXjvkTtFdStRhPjTuRRsJYl/12';
+      await submitWakeForm();
+      await new Promise(r => setTimeout(r, 2000)); // wait for Apps Script
 
       const resp = await fetch(APPS_SCRIPT_URL);
-      if (!resp.ok) throw new Error('Error fetching meal times');
       const data = await resp.json();
-
-      if (!data.meals || data.meals.length !== 4) throw new Error('Invalid meals data');
+      if (!data.meals || data.meals.length !== 4) throw new Error('Invalid meals');
 
       meals = data.meals;
-      statusArr = ['pending', 'pending', 'pending', 'pending'];
-      alarmPlayedFor = [false, false, false, false];
-      saveState();
+      statusArr = meals.map(() => 'pending');
+      alarmsPlayed = meals.map(() => false);
+      save();
 
       wakeBtn.style.display = 'none';
-      updateMealBlocks();
-      startLoop();
+      update();
+      startTimers();
 
     } catch (err) {
       alert('Error al obtener horarios: ' + err.message);
@@ -375,48 +194,124 @@
     }
   }
 
-  // Initialization logic with daily reset at 7AM
-  (function initialize() {
+  function createMealBlock(i, timeStr) {
+    const container = document.createElement('div');
+    container.className = 'meal-block';
+
+    const label = document.createElement('div');
+    label.textContent = `Comida ${i+1}: ${timeStr}`;
+    container.appendChild(label);
+
+    const countdown = document.createElement('div');
+    countdown.className = 'countdown';
+    container.appendChild(countdown);
+
+    const button = document.createElement('button');
+    button.className = 'action-btn';
+    button.textContent = 'Ir a Comer';
+    button.style.display = 'none';
+    container.appendChild(button);
+
+    const icon = document.createElement('div');
+    icon.className = 'status-icon';
+    container.appendChild(icon);
+
+    button.addEventListener('click', () => {
+      statusArr[i] = 'done';
+      save();
+      update();
+      window.open('https://glitch.com/edit/#!/temporizador-para-nenes', '_blank');
+    });
+
+    return {container, countdown, button, icon};
+  }
+
+  function update() {
+    mealTimesDiv.innerHTML = '';
     const now = new Date();
-    const savedDate = localStorage.getItem('lastDate');
-    const { savedMeals, savedStatus } = loadState();
+    let allFinished = true;
 
-    const isSameDate = savedDate === now.toDateString();
-    const allMealsDoneOrMissed = savedStatus.length === 4 && savedStatus.every(s => s === 'done' || s === 'missed');
+    meals.forEach((t, i) => {
+      const mealTime = parseTime(t);
+      const msDiff = mealTime - now;
+      const {container, countdown, button, icon} = createMealBlock(i, t);
 
-    if (isSameDate && savedMeals.length === 4) {
-      meals = savedMeals;
-      statusArr = savedStatus;
-
-      if (allMealsDoneOrMissed) {
-        showCocinaCerrada();
+      if (statusArr[i] === 'done') {
+        countdown.textContent = '¡Completado!';
+        icon.textContent = '✅';
+        icon.classList.add('done');
+      } else if (statusArr[i] === 'missed') {
+        countdown.textContent = 'Perdido';
+        icon.textContent = '❌';
+        icon.classList.add('missed');
       } else {
-        wakeBtn.style.display = 'none';
-        updateMealBlocks();
-        startLoop();
+        allFinished = false;
+        if (msDiff > 0) {
+          countdown.textContent = 'Empieza en ' + diffString(msDiff);
+        } else if (-msDiff < allowedLateMinutes * 60000) {
+          countdown.textContent = '¡Hora de comer!';
+          button.style.display = 'inline-block';
+        } else {
+          statusArr[i] = 'missed';
+          save();
+          countdown.textContent = 'Perdido';
+          icon.textContent = '❌';
+          icon.classList.add('missed');
+        }
       }
-    } else {
-      if (now.getHours() >= 7) {
-        resetAll();
-      } else {
-        wakeBtn.style.display = 'none';
-        mealTimesDiv.innerHTML = '<p>La cocina estará abierta a las 7 AM.</p>';
-      }
-    }
 
-    // Auto reset at 7:00 AM daily
-    setInterval(() => {
-      const current = new Date();
-      if (current.getHours() === 7 && current.getMinutes() === 0) {
-        resetAll();
-      }
-    }, 60000);
-  })();
+      mealTimesDiv.appendChild(container);
+    });
 
-  wakeBtn.addEventListener('click', onWakeButtonClick);
+    if (allFinished) showCocina();
+  }
+
+  function startTimers() {
+    clearCountdowns();
+    countdowns.push(setInterval(() => {
+      update();
+      checkAlarms();
+    }, 1000));
+  }
+
+  function checkAlarms() {
+    const now = new Date();
+    meals.forEach((t, i) => {
+      const mt = parseTime(t);
+      if (!alarmsPlayed[i] && now >= mt && now - mt < 60000) {
+        alarmSound.play();
+        alarmsPlayed[i] = true;
+      }
+    });
+  }
+
+  function showCocina() {
+    mealTimesDiv.style.display = 'none';
+    cocinaDiv.style.display = 'flex';
+    cocinaVideo.style.display = 'block';
+    cocinaVideo.play();
+    wakeBtn.style.display = 'none';
+  }
+
+  // Load on page
+  const today = new Date().toDateString();
+  const storedDate = localStorage.getItem('lastDate');
+
+  if (storedDate === today) {
+    load();
+    update();
+    startTimers();
+    wakeBtn.style.display = 'none';
+  } else if (new Date().getHours() >= 7) {
+    wakeBtn.style.display = 'inline-block';
+  } else {
+    mealTimesDiv.innerHTML = '<p>La cocina se abre a las 7:00 AM.</p>';
+    wakeBtn.style.display = 'none';
+  }
+
+  wakeBtn.addEventListener('click', onWakeClick);
 
 })();
 </script>
-
 </body>
 </html>
