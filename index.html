@@ -1,319 +1,251 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Despertar</title>
+  <meta charset="UTF-8">
+  <title>Despertar y Comidas</title>
   <style>
-    * {
+    html, body {
       margin: 0;
       padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      font-family: 'Comic Sans MS', cursive, sans-serif;
-      color: #333;
-      text-align: center;
+      font-family: 'Comic Sans MS', cursive;
       overflow: hidden;
-      position: relative;
-      height: 100vh;
-      width: 100vw;
+      color: white;
+      text-align: center;
     }
-
-    video#bg-video {
+    video#background {
       position: fixed;
-      top: 0;
-      left: 0;
-      min-width: 100vw;
-      min-height: 100vh;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
       object-fit: cover;
-      z-index: -10;
+      z-index: -2;
     }
-
     #cocina-cerrada {
       display: none;
       position: fixed;
       top: 0; left: 0; width: 100vw; height: 100vh;
-      background: #000000cc;
-      color: #ff4444;
-      font-size: clamp(2rem, 10vw, 8rem);
-      font-family: 'Courier New', monospace;
-      text-transform: uppercase;
-      display: flex;
+      background: black;
+      color: red;
+      font-size: 4vw;
+      z-index: 99;
       justify-content: center;
       align-items: center;
-      z-index: 9999;
-      border: 15px dashed #ff4444;
-      text-shadow: 0 0 10px #ff4444;
-      flex-direction: column;
+      text-transform: uppercase;
+      font-weight: bold;
+      text-shadow: 0 0 10px red;
     }
-
+    video#cerrada-video {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      object-fit: cover;
+      z-index: 98;
+      display: none;
+    }
     #wake-button {
+      margin-top: 3rem;
       font-size: 2rem;
-      padding: 1rem 3rem;
+      padding: 1rem 2rem;
+      border-radius: 30px;
       border: none;
-      border-radius: 50px;
       background: #ff4b2b;
       color: white;
       cursor: pointer;
-      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-      margin-top: 2rem;
     }
-
-    #meal-times {
-      max-width: 500px;
-      margin: 2rem auto;
-      font-size: 1.5rem;
-    }
-
     .meal-block {
-      background: #fffcee;
-      border-radius: 15px;
+      background: rgba(0, 0, 0, 0.6);
+      border-radius: 20px;
+      margin: 1rem auto;
       padding: 1rem;
-      margin: 1rem 0;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-      position: relative;
-    }
-
-    .countdown {
-      font-weight: bold;
-      color: #444;
-      margin-top: 0.5rem;
-    }
-
-    .action-btn {
-      margin-top: 1rem;
+      max-width: 400px;
       font-size: 1.2rem;
-      padding: 0.6rem 1.2rem;
+    }
+    .meal-block button {
+      margin-top: 10px;
+      padding: 0.5rem 1rem;
       border-radius: 10px;
       border: none;
-      cursor: pointer;
-      background-color: #4caf50;
+      background: #4caf50;
       color: white;
+      font-size: 1rem;
     }
-
-    .status-icon {
-      position: absolute;
-      top: 15px;
-      right: 15px;
+    .status {
       font-size: 2rem;
+      margin-top: 0.5rem;
     }
-
-    .status-icon.missed { color: red; }
-    .status-icon.done { color: green; }
+    .done { color: #0f0; }
+    .missed { color: #f00; }
   </style>
 </head>
 <body>
 
-<video id="bg-video" autoplay muted loop playsinline>
-  <source src="frog_picnic.mp4" type="video/mp4" />
+<!-- Background Video -->
+<video id="background" autoplay muted loop>
+  <source src="frog_picnic.mp4" type="video/mp4">
 </video>
 
-<div id="cocina-cerrada">
-  Cocina Cerrada
-</div>
+<!-- Cocina Cerrada Screen -->
+<video id="cerrada-video" src="cocina_cerrada.mp4" muted autoplay loop></video>
+<div id="cocina-cerrada">Cocina Cerrada</div>
 
+<!-- Wake Button -->
 <button id="wake-button">¡Despertamos!</button>
 
-<div id="meal-times"></div>
+<!-- Meals -->
+<div id="meals"></div>
 
-<audio id="alarm-sound" src="cute.mp3" preload="auto"></audio>
+<!-- Alarm -->
+<audio id="alarm" src="cute.mp3" preload="auto"></audio>
 
 <script>
-(async function() {
-  const wakeBtn = document.getElementById('wake-button');
-  const mealTimesDiv = document.getElementById('meal-times');
-  const cocinaDiv = document.getElementById('cocina-cerrada');
-  const alarmSound = document.getElementById('alarm-sound');
+const wakeButton = document.getElementById("wake-button");
+const mealsDiv = document.getElementById("meals");
+const cerradaScreen = document.getElementById("cocina-cerrada");
+const cerradaVideo = document.getElementById("cerrada-video");
+const alarm = document.getElementById("alarm");
 
-  const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfqhAxYZX-dYDBQySEUtxIpXmzMTRzYw83KFi20qkMC8gF21A/formResponse';
-  const FORM_DATE = 'entry.1742440048';
-  const FORM_NAME = 'entry.530673272';
-  const FORM_PARTICIPANTS = 'entry.916852138';
-  const FORM_STATUS = 'entry.867522782';
+// CONFIG: Replace with your actual values
+const GOOGLE_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfqhAxYZX-dYDBQySEUtxIpXmzMTRzYw83KFi20qkMC8gF21A/formResponse';
+const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/1XEeQL89J-Hd1AiGTOwBbkXYgOInf_m9Z1tPvTI-S3d4/gviz/tq?tqx=out:csv&sheet=Despertar'; // 👈 Use CSV export from sheet
+const PARTICIPANTS = ["Dadiva", "Cypher", "Harbinjer", "Evyr"];
 
-  const participants = ['Dadiva', 'Cypher', 'Harbinjer', 'Evyr'];
-  const allowedLateMinutes = 40;
-  let meals = [];
-  let statuses = [];
-  let alarmed = [];
+let meals = [];
+let mealStatus = [];
 
-  function toStandardTime(t) {
-    let [h, m] = t.split(':').map(Number);
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    h = h % 12;
-    h = h || 12;
-    return `${h}:${m.toString().padStart(2,'0')} ${ampm}`;
-  }
+function standardTime(t) {
+  let [h, m] = t.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${m.toString().padStart(2,'0')} ${ampm}`;
+}
 
-  function getTodayDate() {
-    const d = new Date();
-    return d.toISOString().slice(0,10);
-  }
+function parseTime(t) {
+  const [h, m] = t.split(':').map(Number);
+  const d = new Date();
+  d.setHours(h, m, 0, 0);
+  return d;
+}
 
-  function parseTime(str) {
-    const [h, m] = str.split(':').map(Number);
-    const d = new Date();
-    d.setHours(h, m, 0, 0);
-    return d;
-  }
+function getNow() {
+  return new Date();
+}
 
-  function showCocinaCerrada() {
-    cocinaDiv.style.display = 'flex';
-  }
-
-  function logMeal(index) {
-    const form = new URLSearchParams();
-    form.append(FORM_DATE, getTodayDate());
-    form.append(FORM_NAME, '');
-    form.append(FORM_STATUS, statuses[index] === 'done' ? 'comido' : 'perdido');
-    participants.forEach(p => form.append(FORM_PARTICIPANTS, p));
-    fetch(FORM_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: form.toString()
-    }).then(() => console.log("Logged meal " + (index + 1)));
-  }
-
-  function showMeals() {
-    mealTimesDiv.innerHTML = '';
-    const now = new Date();
-    let allDone = true;
-
-    meals.forEach((meal, i) => {
-      const container = document.createElement('div');
-      container.className = 'meal-block';
-
-      const label = document.createElement('div');
-      label.innerHTML = `<strong>Comida ${i+1}: ${toStandardTime(meal)}</strong>`;
-      container.appendChild(label);
-
-      const countdown = document.createElement('div');
-      countdown.className = 'countdown';
-      container.appendChild(countdown);
-
-      const btn = document.createElement('button');
-      btn.className = 'action-btn';
-      btn.textContent = 'Ir a Comer';
-      btn.style.display = 'none';
-      container.appendChild(btn);
-
-      const icon = document.createElement('div');
-      icon.className = 'status-icon';
-      container.appendChild(icon);
-
-      const mealTime = parseTime(meal);
-      const diff = mealTime - now;
-
-      if (!statuses[i]) statuses[i] = 'pending';
-
-      if (statuses[i] === 'done') {
-        countdown.textContent = '¡Completado!';
-        btn.style.display = 'none';
-        icon.textContent = '✅';
-        icon.classList.add('done');
-      } else if (statuses[i] === 'missed') {
-        countdown.textContent = 'Perdido';
-        btn.style.display = 'none';
-        icon.textContent = '❌';
-        icon.classList.add('missed');
-      } else {
-        allDone = false;
-
-        if (diff > 0) {
-          countdown.textContent = `Empieza en ${Math.floor(diff/60000)} min`;
-        } else {
-          const late = now - mealTime;
-          if (late <= allowedLateMinutes * 60000) {
-            countdown.textContent = '¡Hora de comer!';
-            btn.style.display = 'inline-block';
-            btn.onclick = () => {
-              statuses[i] = 'done';
-              logMeal(i);
-              showMeals();
-              window.open('https://glitch.com/edit/#!/temporizador-para-nenes', '_blank');
-            };
-          } else {
-            statuses[i] = 'missed';
-            logMeal(i);
-            countdown.textContent = 'Perdido';
-            icon.textContent = '❌';
-            icon.classList.add('missed');
-          }
-        }
-      }
-
-      mealTimesDiv.appendChild(container);
+function loadSheetData() {
+  fetch(SHEET_CSV_URL)
+    .then(res => res.text())
+    .then(csv => {
+      const rows = csv.trim().split('\n').map(r => r.split(','));
+      const last = rows[rows.length - 1];
+      meals = last.slice(1, 5); // assuming columns: Date, M1, M2, M3, M4
+      mealStatus = ["pending", "pending", "pending", "pending"];
+      startLoop();
     });
+}
 
-    if (allDone) showCocinaCerrada();
+function showMeals() {
+  mealsDiv.innerHTML = '';
+  const now = getNow();
+  let allDone = true;
+
+  meals.forEach((time, i) => {
+    const mealTime = parseTime(time);
+    const diff = mealTime - now;
+    const late = now - mealTime;
+
+    const div = document.createElement("div");
+    div.className = "meal-block";
+
+    const label = document.createElement("div");
+    label.textContent = `Comida ${i + 1}: ${standardTime(time)}`;
+    div.appendChild(label);
+
+    const status = document.createElement("div");
+    status.className = "status";
+
+    if (mealStatus[i] === "done") {
+      status.textContent = "✅";
+      status.classList.add("done");
+    } else if (mealStatus[i] === "missed") {
+      status.textContent = "❌";
+      status.classList.add("missed");
+    } else if (diff > 0) {
+      status.textContent = `En ${Math.floor(diff / 60000)} min`;
+      allDone = false;
+    } else if (late < 40 * 60000) {
+      const btn = document.createElement("button");
+      btn.textContent = "Ir a Comer";
+      btn.onclick = () => {
+        mealStatus[i] = "done";
+        submitMeal(i, "comido");
+        showMeals();
+        window.open("https://glitch.com/edit/#!/temporizador-para-nenes", "_blank");
+      };
+      div.appendChild(btn);
+      allDone = false;
+    } else {
+      mealStatus[i] = "missed";
+      submitMeal(i, "perdido");
+      status.textContent = "❌";
+      status.classList.add("missed");
+    }
+
+    div.appendChild(status);
+    mealsDiv.appendChild(div);
+  });
+
+  if (allDone) {
+    cerradaVideo.style.display = "block";
+    cerradaScreen.style.display = "flex";
   }
+}
 
-  async function fetchMeals() {
-    const SHEET_JSON_URL = 'https://opensheet.elk.sh/1XEeQL89J-Hd1AiGTOwBbkXYgOInf_m9Z1tPvTI-S3d4/Horarios';
-    const today = getTodayDate();
-    const res = await fetch(SHEET_JSON_URL);
-    const rows = await res.json();
-    const row = rows.find(r => r.Fecha === today);
-    if (!row) throw new Error('No schedule found for today.');
-    meals = [row.Meal1, row.Meal2, row.Meal3, row.Meal4];
-    statuses = [];
-    alarmed = [false, false, false, false];
-    showMeals();
-  }
+function startLoop() {
+  showMeals();
+  setInterval(showMeals, 60000);
+}
 
-  function shouldReset() {
-    const now = new Date();
-    return now.getHours() === 7 && now.getMinutes() === 0;
-  }
+function submitMeal(index, status) {
+  const formData = new URLSearchParams();
+  const dateStr = new Date().toISOString().split("T")[0];
+  formData.append("entry.1742440048", dateStr); // date
+  formData.append("entry.530673272", "Auto");   // name
+  formData.append("entry.867522782", status);   // status
+  PARTICIPANTS.forEach(p => formData.append("entry.916852138", p));
 
-  // INIT
+  fetch(GOOGLE_FORM_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    body: formData
+  });
+}
+
+wakeButton.onclick = () => {
   const now = new Date();
-  if (now.getHours() < 7) {
-    wakeBtn.style.display = 'none';
-    mealTimesDiv.innerHTML = '<p>La cocina estará abierta a las 7 AM.</p>';
+  const dateStr = now.toISOString().split("T")[0];
+
+  const data = new URLSearchParams();
+  data.append("entry.1742440048", dateStr);
+  data.append("entry.530673272", "Auto");
+
+  fetch(GOOGLE_FORM_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    body: data
+  }).then(() => {
+    wakeButton.style.display = "none";
+    setTimeout(loadSheetData, 3000); // wait 3 sec for sheet to update
+  });
+};
+
+(function checkWake() {
+  const now = new Date();
+  if (now.getHours() >= 7) {
+    wakeButton.style.display = "inline-block";
   } else {
-    wakeBtn.onclick = async () => {
-      wakeBtn.disabled = true;
-      wakeBtn.textContent = 'Cargando...';
-      try {
-        // Submit wake time via form
-        const nowStr = getTodayDate();
-        const d = new URLSearchParams();
-        d.append(FORM_DATE, nowStr);
-        d.append(FORM_NAME, 'Despertar');
-        d.append(FORM_STATUS, 'wake');
-        participants.forEach(p => d.append(FORM_PARTICIPANTS, p));
-        await fetch(FORM_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: d.toString()
-        });
-
-        setTimeout(fetchMeals, 1000); // Wait for Sheet to calculate
-        wakeBtn.style.display = 'none';
-      } catch (e) {
-        alert('Error al despertar: ' + e.message);
-        wakeBtn.disabled = false;
-        wakeBtn.textContent = '¡Despertamos!';
-      }
-    };
-
-    // Auto load meal times if already submitted
-    fetchMeals().catch(() => {
-      wakeBtn.style.display = 'inline-block';
-    });
+    wakeButton.style.display = "none";
+    mealsDiv.innerHTML = "<p>La cocina estará abierta a las 7 AM.</p>";
   }
-
-  // Auto reset at 7 AM
-  setInterval(() => {
-    if (shouldReset()) location.reload();
-  }, 60000);
-
 })();
 </script>
+
 </body>
 </html>
