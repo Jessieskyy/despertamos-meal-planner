@@ -11,9 +11,8 @@
       overflow: hidden;
       color: white;
       text-align: center;
-      height: 100%;
     }
-    video#background, video#cerrada-video {
+    video#background {
       position: fixed;
       top: 0; left: 0;
       width: 100vw; height: 100vh;
@@ -24,7 +23,7 @@
       display: none;
       position: fixed;
       top: 0; left: 0; width: 100vw; height: 100vh;
-      background: rgba(0,0,0,0.85);
+      background: black;
       color: red;
       font-size: 4vw;
       z-index: 99;
@@ -33,11 +32,14 @@
       text-transform: uppercase;
       font-weight: bold;
       text-shadow: 0 0 10px red;
-      display: flex;
     }
-    #cerrada-video {
+    video#cerrada-video {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      object-fit: cover;
+      z-index: 98;
       display: none;
-      z-index: -1;
     }
     #wake-button {
       margin-top: 3rem;
@@ -81,120 +83,103 @@
   <source src="frog_picnic.mp4" type="video/mp4">
 </video>
 
-<!-- Cocina Cerrada -->
-<video id="cerrada-video" src="cocina_cerrada.mp4" autoplay muted loop></video>
-<div id="cocina-cerrada" style="display:none;">Cocina Cerrada</div>
+<!-- Cocina Cerrada Screen -->
+<video id="cerrada-video" src="cocina_cerrada.mp4" muted autoplay loop></video>
+<div id="cocina-cerrada">Cocina Cerrada</div>
 
 <!-- Wake Button -->
-<button id="wake-button" style="display:none;">¡Despertamos!</button>
+<button id="wake-button">¡Despertamos!</button>
 
-<!-- Meals Container -->
+<!-- Meals -->
 <div id="meals"></div>
 
 <!-- Alarm -->
 <audio id="alarm" src="cute.mp3" preload="auto"></audio>
 
 <script>
+const GOOGLE_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfqhAxYZX-dYDBQySEUtxIpXmzMTRzYw83KFi20qkMC8gF21A/formResponse';
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbye_RM4RwvhXmxKGx7UBIdT86PPdnjGk2AyC1slb0hVX4KKUigKYEFSHeXkGa5t3sN1sA/exec';
 const PARTICIPANTS = ["Dadiva", "Cypher", "Harbinjer", "Evyr"];
 
-const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfqhAxYZX-dYDBQySEUtxIpXmzMTRzYw83KFi20qkMC8gF21A/formResponse';
-const CSV_URL = 'https://docs.google.com/spreadsheets/d/1XEeQL89J-Hd1AiGTOwBbkXYgOInf_m9Z1tPvTI-S3d4/gviz/tq?tqx=out:csv&sheet=Despertar';
-
-const wakeButton = document.getElementById("wake-button");
 const mealsDiv = document.getElementById("meals");
+const wakeButton = document.getElementById("wake-button");
 const cerradaVideo = document.getElementById("cerrada-video");
 const cerradaScreen = document.getElementById("cocina-cerrada");
 
 let meals = [];
-let status = ["pending", "pending", "pending", "pending"];
-let todayStr = new Date().toISOString().split("T")[0];
+let mealStatus = ["pending", "pending", "pending", "pending"];
 
-function toStandard(t) {
-  let [h, m] = t.split(':').map(Number);
+function standardTime(t) {
+  let [h, m] = t.split(':');
+  h = parseInt(h, 10);
   const ampm = h >= 12 ? 'PM' : 'AM';
   h = h % 12 || 12;
-  return `${h}:${m.toString().padStart(2,'0')} ${ampm}`;
+  return `${h}:${m.padStart(2, '0')} ${ampm}`;
 }
 
-function toDate(t) {
-  const [h, m] = t.split(':').map(Number);
+function parseTime(t) {
+  const [hm, ampm] = t.trim().split(' ');
+  let [h, m] = hm.split(':').map(Number);
+  if (ampm === 'PM' && h !== 12) h += 12;
+  if (ampm === 'AM' && h === 12) h = 0;
   const d = new Date();
   d.setHours(h, m, 0, 0);
   return d;
 }
 
-function fetchCSV() {
-  fetch(CSV_URL)
-    .then(r => r.text())
-    .then(txt => {
-      const rows = txt.trim().split('\n').map(r => r.split(','));
-      const last = rows[rows.length - 1];
-      if (!last[0].includes(todayStr)) {
-        wakeButton.style.display = "inline-block";
-        return;
-      }
-      meals = last.slice(1, 5);
-      wakeButton.style.display = "none";
-      startMealLoop();
-    });
+function getNow() {
+  const d = new Date();
+  return d;
 }
 
-function submitForm(statusText) {
-  const formData = new URLSearchParams();
-  formData.append("entry.1742440048", todayStr); // Fecha
-  formData.append("entry.530673272", "Auto");
-  formData.append("entry.867522782", statusText);
-  PARTICIPANTS.forEach(p => formData.append("entry.916852138", p));
-  fetch(FORM_URL, { method: "POST", mode: "no-cors", body: formData });
-}
-
-function renderMeals() {
-  const now = new Date();
+function showMeals() {
+  mealsDiv.innerHTML = '';
+  const now = getNow();
   let allDone = true;
-  mealsDiv.innerHTML = "";
 
-  meals.forEach((t, i) => {
-    const div = document.createElement("div");
-    div.className = "meal-block";
-    const label = document.createElement("div");
-    label.textContent = `Comida ${i + 1}: ${toStandard(t)}`;
-    div.appendChild(label);
-
-    const mealTime = toDate(t);
+  meals.forEach((time, i) => {
+    const mealTime = parseTime(time);
     const diff = mealTime - now;
     const late = now - mealTime;
 
-    const stat = document.createElement("div");
-    stat.className = "status";
+    const div = document.createElement("div");
+    div.className = "meal-block";
 
-    if (status[i] === "done") {
-      stat.textContent = "✅";
-      stat.classList.add("done");
-    } else if (status[i] === "missed") {
-      stat.textContent = "❌";
-      stat.classList.add("missed");
+    const label = document.createElement("div");
+    label.textContent = `Comida ${i + 1}: ${time}`;
+    div.appendChild(label);
+
+    const status = document.createElement("div");
+    status.className = "status";
+
+    if (mealStatus[i] === "done") {
+      status.textContent = "✅";
+      status.classList.add("done");
+    } else if (mealStatus[i] === "missed") {
+      status.textContent = "❌";
+      status.classList.add("missed");
     } else if (diff > 0) {
-      stat.textContent = `En ${Math.ceil(diff/60000)} min`;
+      status.textContent = `En ${Math.floor(diff / 60000)} min`;
       allDone = false;
-    } else if (late < 40*60000) {
+    } else if (late < 40 * 60000) {
       const btn = document.createElement("button");
       btn.textContent = "Ir a Comer";
       btn.onclick = () => {
-        status[i] = "done";
-        submitForm("comido");
-        renderMeals();
+        mealStatus[i] = "done";
+        submitMeal(i, "comido");
+        showMeals();
         window.open("https://glitch.com/edit/#!/temporizador-para-nenes", "_blank");
       };
       div.appendChild(btn);
       allDone = false;
     } else {
-      status[i] = "missed";
-      submitForm("perdido");
-      stat.textContent = "❌";
-      stat.classList.add("missed");
+      mealStatus[i] = "missed";
+      submitMeal(i, "perdido");
+      status.textContent = "❌";
+      status.classList.add("missed");
     }
 
-    div.appendChild(stat);
+    div.appendChild(status);
     mealsDiv.appendChild(div);
   });
 
@@ -204,32 +189,72 @@ function renderMeals() {
   }
 }
 
-function startMealLoop() {
-  renderMeals();
-  setInterval(renderMeals, 60000);
+function submitMeal(index, status) {
+  const formData = new URLSearchParams();
+  const dateStr = new Date().toISOString().split("T")[0];
+  formData.append("entry.1742440048", dateStr);
+  formData.append("entry.530673272", "Auto");
+  formData.append("entry.867522782", status);
+  PARTICIPANTS.forEach(p => formData.append("entry.916852138", p));
+
+  fetch(GOOGLE_FORM_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    body: formData
+  });
+}
+
+function startLoop() {
+  showMeals();
+  setInterval(showMeals, 60000);
+}
+
+function loadMealTimes() {
+  fetch(WEB_APP_URL)
+    .then(res => res.json())
+    .then(json => {
+      meals = [json.meal1, json.meal2, json.meal3, json.meal4];
+      wakeButton.style.display = "none";
+      localStorage.setItem("lastWakeDate", new Date().toISOString().split("T")[0]);
+      startLoop();
+    })
+    .catch(e => {
+      mealsDiv.innerHTML = "<p>⚠️ Error cargando los horarios.</p>";
+    });
 }
 
 wakeButton.onclick = () => {
+  const now = new Date();
+  const dateStr = now.toISOString().split("T")[0];
+
   const data = new URLSearchParams();
-  data.append("entry.1742440048", todayStr);
+  data.append("entry.1742440048", dateStr);
   data.append("entry.530673272", "Auto");
-  fetch(FORM_URL, { method: "POST", mode: "no-cors", body: data })
-    .then(() => {
-      wakeButton.style.display = "none";
-      setTimeout(fetchCSV, 3000);
-    });
+
+  fetch(GOOGLE_FORM_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    body: data
+  }).then(() => {
+    wakeButton.disabled = true;
+    setTimeout(loadMealTimes, 3000);
+  });
 };
 
-// On load
-window.onload = () => {
+(function checkWake() {
   const now = new Date();
-  const hour = now.getHours();
-  if (hour >= 7) {
-    fetchCSV();
+  const today = now.toISOString().split("T")[0];
+  const lastWake = localStorage.getItem("lastWakeDate");
+  if (lastWake === today) {
+    loadMealTimes();
+  } else if (now.getHours() >= 7) {
+    wakeButton.style.display = "inline-block";
   } else {
-    mealsDiv.innerHTML = "<p>La cocina estará abierta a las 7:00 AM.</p>";
+    wakeButton.style.display = "none";
+    mealsDiv.innerHTML = "<p>La cocina estará abierta a las 7 AM.</p>";
   }
-};
+})();
 </script>
+
 </body>
 </html>
