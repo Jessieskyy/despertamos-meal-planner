@@ -11,8 +11,9 @@
       overflow: hidden;
       color: white;
       text-align: center;
+      background: black;
     }
-    video#background {
+    video#background, video#cerrada-video {
       position: fixed;
       top: 0; left: 0;
       width: 100vw; height: 100vh;
@@ -23,7 +24,7 @@
       display: none;
       position: fixed;
       top: 0; left: 0; width: 100vw; height: 100vh;
-      background: black;
+      background: rgba(0,0,0,0.8);
       color: red;
       font-size: 4vw;
       z-index: 99;
@@ -32,13 +33,6 @@
       text-transform: uppercase;
       font-weight: bold;
       text-shadow: 0 0 10px red;
-    }
-    video#cerrada-video {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100vw; height: 100vh;
-      object-fit: cover;
-      z-index: 98;
       display: none;
     }
     #wake-button {
@@ -78,22 +72,17 @@
 </head>
 <body>
 
-<!-- Background Video -->
+<!-- Background -->
 <video id="background" autoplay muted loop>
   <source src="frog_picnic.mp4" type="video/mp4">
 </video>
 
-<!-- Cocina Cerrada Screen -->
-<video id="cerrada-video" src="cocina_cerrada.mp4" muted autoplay loop></video>
+<video id="cerrada-video" src="cocina_cerrada.mp4" muted autoplay loop style="display:none;"></video>
 <div id="cocina-cerrada">Cocina Cerrada</div>
 
-<!-- Wake Button -->
 <button id="wake-button">¡Despertamos!</button>
-
-<!-- Meals -->
 <div id="meals"></div>
 
-<!-- Alarm -->
 <audio id="alarm" src="cute.mp3" preload="auto"></audio>
 
 <script>
@@ -101,21 +90,20 @@ const wakeButton = document.getElementById("wake-button");
 const mealsDiv = document.getElementById("meals");
 const cerradaScreen = document.getElementById("cocina-cerrada");
 const cerradaVideo = document.getElementById("cerrada-video");
-const alarm = document.getElementById("alarm");
 
-// CONFIG: Replace with your actual values
-const GOOGLE_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfqhAxYZX-dYDBQySEUtxIpXmzMTRzYw83KFi20qkMC8gF21A/formResponse';
-const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/1XEeQL89J-Hd1AiGTOwBbkXYgOInf_m9Z1tPvTI-S3d4/gviz/tq?tqx=out:csv&sheet=Despertar'; // 👈 Use CSV export from sheet
+const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfqhAxYZX-dYDBQySEUtxIpXmzMTRzYw83KFi20qkMC8gF21A/formResponse';
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbye_RM4RwvhXmxKGx7UBIdT86PPdnjGk2AyC1slb0hVX4KKUigKYEFSHeXkGa5t3sN1sA/exec';
 const PARTICIPANTS = ["Dadiva", "Cypher", "Harbinjer", "Evyr"];
 
 let meals = [];
-let mealStatus = [];
+let status = [];
 
-function standardTime(t) {
-  let [h, m] = t.split(':').map(Number);
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12 || 12;
-  return `${h}:${m.toString().padStart(2,'0')} ${ampm}`;
+function formatTime(t) {
+  const [h, m] = t.split(':').map(Number);
+  const d = new Date();
+  d.setHours(h);
+  d.setMinutes(m);
+  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
 function parseTime(t) {
@@ -125,126 +113,120 @@ function parseTime(t) {
   return d;
 }
 
-function getNow() {
-  return new Date();
-}
-
-function loadSheetData() {
-  fetch(SHEET_CSV_URL)
-    .then(res => res.text())
-    .then(csv => {
-      const rows = csv.trim().split('\n').map(r => r.split(','));
-      const last = rows[rows.length - 1];
-      meals = last.slice(1, 5); // assuming columns: Date, M1, M2, M3, M4
-      mealStatus = ["pending", "pending", "pending", "pending"];
-      startLoop();
-    });
-}
-
 function showMeals() {
   mealsDiv.innerHTML = '';
-  const now = getNow();
   let allDone = true;
+  const now = new Date();
 
-  meals.forEach((time, i) => {
-    const mealTime = parseTime(time);
-    const diff = mealTime - now;
-    const late = now - mealTime;
-
+  meals.forEach((mealTime, i) => {
     const div = document.createElement("div");
     div.className = "meal-block";
 
     const label = document.createElement("div");
-    label.textContent = `Comida ${i + 1}: ${standardTime(time)}`;
+    label.textContent = `Comida ${i + 1}: ${mealTime}`;
     div.appendChild(label);
 
-    const status = document.createElement("div");
-    status.className = "status";
+    const mealDate = parseTime(mealTime);
+    const diff = mealDate - now;
+    const late = now - mealDate;
 
-    if (mealStatus[i] === "done") {
-      status.textContent = "✅";
-      status.classList.add("done");
-    } else if (mealStatus[i] === "missed") {
-      status.textContent = "❌";
-      status.classList.add("missed");
+    const stat = document.createElement("div");
+    stat.className = "status";
+
+    if (status[i] === "done") {
+      stat.textContent = "✅";
+      stat.classList.add("done");
+    } else if (status[i] === "missed") {
+      stat.textContent = "❌";
+      stat.classList.add("missed");
     } else if (diff > 0) {
-      status.textContent = `En ${Math.floor(diff / 60000)} min`;
+      stat.textContent = `En ${Math.floor(diff / 60000)} min`;
       allDone = false;
-    } else if (late < 40 * 60000) {
+    } else if (late <= 40 * 60000) {
       const btn = document.createElement("button");
       btn.textContent = "Ir a Comer";
       btn.onclick = () => {
-        mealStatus[i] = "done";
-        submitMeal(i, "comido");
+        status[i] = "done";
+        logStatus("comido");
         showMeals();
         window.open("https://glitch.com/edit/#!/temporizador-para-nenes", "_blank");
       };
       div.appendChild(btn);
       allDone = false;
     } else {
-      mealStatus[i] = "missed";
-      submitMeal(i, "perdido");
-      status.textContent = "❌";
-      status.classList.add("missed");
+      status[i] = "missed";
+      logStatus("perdido");
+      stat.textContent = "❌";
+      stat.classList.add("missed");
     }
 
-    div.appendChild(status);
+    div.appendChild(stat);
     mealsDiv.appendChild(div);
   });
 
   if (allDone) {
-    cerradaVideo.style.display = "block";
     cerradaScreen.style.display = "flex";
+    cerradaVideo.style.display = "block";
   }
 }
 
-function startLoop() {
-  showMeals();
-  setInterval(showMeals, 60000);
+function logStatus(state) {
+  const data = new URLSearchParams();
+  const dateStr = new Date().toISOString().split("T")[0];
+  data.append("entry.1742440048", dateStr);
+  data.append("entry.530673272", "Auto");
+  data.append("entry.867522782", state);
+  PARTICIPANTS.forEach(p => data.append("entry.916852138", p));
+  fetch(FORM_URL, { method: 'POST', mode: 'no-cors', body: data });
 }
 
-function submitMeal(index, status) {
-  const formData = new URLSearchParams();
-  const dateStr = new Date().toISOString().split("T")[0];
-  formData.append("entry.1742440048", dateStr); // date
-  formData.append("entry.530673272", "Auto");   // name
-  formData.append("entry.867522782", status);   // status
-  PARTICIPANTS.forEach(p => formData.append("entry.916852138", p));
-
-  fetch(GOOGLE_FORM_URL, {
-    method: 'POST',
-    mode: 'no-cors',
-    body: formData
-  });
+function fetchMeals() {
+  fetch(WEB_APP_URL)
+    .then(res => res.json())
+    .then(data => {
+      if (!data.meals || data.meals.length !== 4) throw new Error("Invalid meal data");
+      meals = data.meals;
+      status = meals.map(() => "pending");
+      localStorage.setItem("today", new Date().toDateString());
+      localStorage.setItem("meals", JSON.stringify(meals));
+      localStorage.setItem("status", JSON.stringify(status));
+      wakeButton.style.display = "none";
+      showMeals();
+      setInterval(showMeals, 60000);
+    });
 }
 
 wakeButton.onclick = () => {
-  const now = new Date();
-  const dateStr = now.toISOString().split("T")[0];
-
+  const dateStr = new Date().toISOString().split("T")[0];
   const data = new URLSearchParams();
   data.append("entry.1742440048", dateStr);
   data.append("entry.530673272", "Auto");
 
-  fetch(GOOGLE_FORM_URL, {
+  fetch(FORM_URL, {
     method: 'POST',
     mode: 'no-cors',
     body: data
   }).then(() => {
-    wakeButton.style.display = "none";
-    setTimeout(loadSheetData, 3000); // wait 3 sec for sheet to update
+    setTimeout(fetchMeals, 3000);
   });
 };
 
-(function checkWake() {
-  const now = new Date();
-  if (now.getHours() >= 7) {
+// Init
+const savedDate = localStorage.getItem("today");
+const today = new Date().toDateString();
+if (savedDate === today) {
+  meals = JSON.parse(localStorage.getItem("meals") || "[]");
+  status = JSON.parse(localStorage.getItem("status") || "[]");
+  wakeButton.style.display = "none";
+  showMeals();
+  setInterval(showMeals, 60000);
+} else {
+  if (new Date().getHours() >= 7) {
     wakeButton.style.display = "inline-block";
   } else {
-    wakeButton.style.display = "none";
     mealsDiv.innerHTML = "<p>La cocina estará abierta a las 7 AM.</p>";
   }
-})();
+}
 </script>
 
 </body>
