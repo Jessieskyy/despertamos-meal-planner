@@ -11,7 +11,6 @@
       font-family: 'Comic Sans MS', cursive;
       background: black; color: white;
       text-align: center;
-      position: relative;
     }
     video#background, video#cerrada-video {
       position: fixed;
@@ -46,10 +45,6 @@
       cursor: pointer;
       z-index: 1;
     }
-    #wake-button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
     .meal-block {
       position: relative;
       background: rgba(0, 0, 0, 0.6);
@@ -77,61 +72,64 @@
     .done { color: #0f0; }
     .missed { color: #f00; }
 
-    /* Loader bar container */
-    #loader-bar-container {
-      width: 80%;
-      max-width: 300px;
-      height: 20px;
-      border: 2px solid #4caf50;
-      border-radius: 12px;
-      margin: 20px auto;
-      background: rgba(255, 255, 255, 0.1);
-      position: relative;
-      overflow: hidden;
-      display: none;
+    /* Loader styles */
+    #loader-container {
+      position: fixed;
+      top: 10vh;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 120px;
+      height: 120px;
       z-index: 10;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      color: white;
+      font-family: 'Comic Sans MS', cursive;
+      user-select: none;
     }
-    /* Loader bar fill */
-    #loader-bar-fill {
-      background: #4caf50;
-      height: 100%;
+    #loader-container img {
+      width: 100px;
+      height: 100px;
+      image-rendering: pixelated;
+      animation: frogBounce 1.5s infinite ease-in-out;
+    }
+    #loader-bar {
+      margin-top: 10px;
+      width: 100%;
+      height: 12px;
+      background: #444;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 0 10px #2ecc71;
+    }
+    #loader-progress {
       width: 0%;
+      height: 100%;
+      background: #2ecc71;
       border-radius: 10px;
       transition: width 0.4s ease;
-      position: relative;
-      z-index: 2;
     }
-    /* Loader frog icon */
-    #loader-frog {
-      position: absolute;
-      left: -50px;
-      top: -8px;
-      width: 48px;
-      height: 48px;
-      background:
-        url('https://jessieskyy.github.io/despertamos-meal-planner/fat_frog.png') no-repeat center center / contain;
-      filter: drop-shadow(0 0 2px #3a9a3a);
-      user-select: none;
-      pointer-events: none;
-      image-rendering: pixelated;
-      transition: left 0.4s ease;
-      z-index: 3;
+    @keyframes frogBounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-15px); }
     }
   </style>
 </head>
 <body>
 
-<video id="background" autoplay muted loop src="https://jessieskyy.github.io/despertamos-meal-planner/frog_picnic.mp4"></video>
-<video id="cerrada-video" autoplay muted loop src="https://jessieskyy.github.io/despertamos-meal-planner/cocina_cerrada.mp4"></video>
-<div id="cocina-cerrada">Cocina Cerrada</div>
+  <video id="background" autoplay muted loop src="https://jessieskyy.github.io/despertamos-meal-planner/frog_picnic.mp4"></video>
+  <video id="cerrada-video" autoplay muted loop src="https://jessieskyy.github.io/despertamos-meal-planner/cocina_cerrada.mp4"></video>
+  <div id="cocina-cerrada">Cocina Cerrada</div>
 
-<button id="wake-button">¡Despertamos!</button>
-<div id="loader-bar-container">
-  <div id="loader-bar-fill"></div>
-  <div id="loader-frog"></div>
-</div>
-<div id="meals"></div>
-<audio id="alarm" src="cute.mp3" preload="auto"></audio>
+  <button id="wake-button">¡Despertamos!</button>
+  <div id="meals"></div>
+  <audio id="alarm" src="cute.mp3" preload="auto"></audio>
+
+  <div id="loader-container">
+    <img src="https://jessieskyy.github.io/despertamos-meal-planner/fat_frog.png" alt="Loading Frog" />
+    <div id="loader-bar"><div id="loader-progress"></div></div>
+  </div>
 
 <script>
 const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfqhAxYZX-dYDBQySEUtxIpXmzMTRzYw83KFi20qkMC8gF21A/formResponse';
@@ -142,13 +140,11 @@ const wakeBtn = document.getElementById("wake-button");
 const mealsDiv = document.getElementById("meals");
 const cerradaVid = document.getElementById("cerrada-video");
 const cerradaScreen = document.getElementById("cocina-cerrada");
-const loaderContainer = document.getElementById("loader-bar-container");
-const loaderFill = document.getElementById("loader-bar-fill");
-const loaderFrog = document.getElementById("loader-frog");
+const loaderContainer = document.getElementById("loader-container");
+const loaderProgress = document.getElementById("loader-progress");
 
 let meals = [], statusArr = [], refreshInterval;
 
-// Format time like "3:05 PM"
 function stdTime(t) {
   let [h, m] = t.split(':').map(Number);
   const ap = h >= 12 ? 'PM' : 'AM';
@@ -156,7 +152,6 @@ function stdTime(t) {
   return `${h}:${m.toString().padStart(2, '0')} ${ap}`;
 }
 
-// Parse "3:05 PM" into Date today at that time
 function parseTime(t) {
   const [h_m, ap] = t.split(' ');
   let [h, m] = h_m.split(':').map(Number);
@@ -176,10 +171,32 @@ function submitMeal(i, st) {
   fetch(FORM_URL, { method: 'POST', mode: 'no-cors', body: fd });
 }
 
+function showLoader() {
+  loaderContainer.style.display = 'flex';
+  loaderProgress.style.width = '0%';
+  let progress = 0;
+  const interval = setInterval(() => {
+    progress += 5;
+    loaderProgress.style.width = progress + '%';
+    if (progress >= 100) {
+      clearInterval(interval);
+      loaderContainer.style.display = 'none';
+    }
+  }, 160);
+}
+
 function displayMeals() {
   mealsDiv.innerHTML = '';
   const now = new Date();
   let allDone = true;
+
+  if (meals.length === 0) {
+    wakeBtn.style.display = 'inline-block';
+    cerradaVid.style.display = 'none';
+    cerradaScreen.style.display = 'none';
+    mealsDiv.style.display = 'none';
+    return;
+  }
 
   meals.forEach((t, i) => {
     const mealTime = parseTime(t);
@@ -225,6 +242,8 @@ function displayMeals() {
     mealsDiv.appendChild(block);
   });
 
+  console.log('Meal statuses:', statusArr, 'allDone:', allDone);
+
   if (allDone) {
     wakeBtn.style.display = 'none';
     mealsDiv.style.display = 'none';
@@ -236,71 +255,58 @@ function displayMeals() {
     cerradaVid.style.display = 'none';
     cerradaScreen.style.display = 'none';
     mealsDiv.style.display = 'block';
+    wakeBtn.style.display = 'none';
   }
-}
-
-// Cute loader animation during fetch
-function showLoader(duration = 8000) {
-  loaderContainer.style.display = 'block';
-  loaderFill.style.width = '0%';
-  loaderFrog.style.left = '-50px';
-
-  let start = null;
-  function step(timestamp) {
-    if (!start) start = timestamp;
-    const elapsed = timestamp - start;
-    const progress = Math.min(elapsed / duration, 1);
-    const widthPercent = progress * 100;
-    loaderFill.style.width = widthPercent + '%';
-    // Move frog slightly ahead of fill bar for cuteness
-    const maxLeft = loaderContainer.clientWidth - loaderFrog.clientWidth / 2;
-    loaderFrog.style.left = Math.min(widthPercent / 100 * maxLeft - 24, maxLeft) + 'px';
-
-    if (progress < 1) {
-      requestAnimationFrame(step);
-    } else {
-      loaderContainer.style.display = 'none';
-    }
-  }
-  requestAnimationFrame(step);
 }
 
 function tryLoadCSV(retries = 5) {
+  showLoader();
   console.log('Loading CSV... retries left:', retries);
   fetch(CSV_URL).then(r => r.text()).then(csv => {
     const rows = csv.trim().split('\n').map(r => r.split(','));
     const last = rows[rows.length - 1];
     const today = new Date().toISOString().split('T')[0];
+    console.log('CSV last row:', last);
 
     if (last[1] === today && last[6] && last[7] && last[8] && last[9]) {
       meals = [last[6], last[7], last[8], last[9]];
       statusArr = ['', '', '', ''];
+      console.log('Loaded meals:', meals);
       wakeBtn.style.display = 'none';
       wakeBtn.disabled = false;
       displayMeals();
       if (refreshInterval) clearInterval(refreshInterval);
       refreshInterval = setInterval(displayMeals, 60000);
+      loaderContainer.style.display = 'none';
     } else if (retries > 0) {
       console.log(`Waiting for sheet update... (${retries} retries left)`);
       setTimeout(() => tryLoadCSV(retries - 1), 2000);
     } else {
       console.warn('No valid meal data found after retries.');
+      meals = [];
+      statusArr = [];
       wakeBtn.style.display = 'inline-block';
       wakeBtn.disabled = false;
       mealsDiv.innerHTML = '<p>⚠️ No se encontraron horarios válidos hoy.</p>';
+      cerradaVid.style.display = 'none';
+      cerradaScreen.style.display = 'none';
+      loaderContainer.style.display = 'none';
     }
   }).catch(err => {
     console.error('CSV Fetch Error:', err);
+    meals = [];
+    statusArr = [];
     wakeBtn.style.display = 'inline-block';
     wakeBtn.disabled = false;
     mealsDiv.innerHTML = '<p>⚠️ Error cargando horarios.</p>';
+    cerradaVid.style.display = 'none';
+    cerradaScreen.style.display = 'none';
+    loaderContainer.style.display = 'none';
   });
 }
 
 wakeBtn.onclick = () => {
   wakeBtn.disabled = true;
-  mealsDiv.innerHTML = '';
-  showLoader(8000);
   console.log('Wake button pressed, sending form...');
   const fd = new URLSearchParams();
   fd.append('entry.1742440048', new Date().toISOString().split('T')[0]);
