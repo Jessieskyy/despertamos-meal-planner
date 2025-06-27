@@ -217,7 +217,9 @@ function displayMeals() {
     mealsDiv.appendChild(block);
   });
 
-  if (allHandled && meals.every(Boolean)) {
+  // ✅ Fix: Only show Cocina Cerrada if ALL meals handled AND meals are defined
+  const allMealsValid = meals.length === 4 && meals.every(Boolean);
+  if (allHandled && allMealsValid) {
     wakeBtn.style.display = 'none';
     mealsDiv.style.display = 'none';
     loader.style.display = 'none';
