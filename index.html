@@ -4,221 +4,168 @@
   <meta charset="UTF-8" />
   <title>Planificador de Comidas</title>
   <style>
-    html, body {
-      margin: 0; padding: 0;
-      width: 100%; height: 100%;
-      overflow: hidden;
-      font-family: 'Comic Sans MS', cursive;
-      background: black;
-      color: white;
-      text-align: center;
-    }
+    html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden;
+      font-family:'Comic Sans MS', cursive; background:black; color:white;
+      text-align:center; }
     video#background, video#cerrada-video {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100vw; height: 100vh;
-      object-fit: cover;
-      z-index: -1;
+      position:fixed; top:0; left:0; width:100vw; height:100vh;
+      object-fit:cover; z-index:-1; display:none;
     }
+    video#background { display:block; }
     #cocina-cerrada {
-      display: none;
-      position: fixed;
-      top: 0; left: 0;
-      width: 100vw; height: 100vh;
-      background: rgba(0,0,0,0.6);
-      color: red;
-      font-size: 4vw;
-      z-index: 2;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      text-shadow: 0 0 10px red;
+      display:none; position:fixed; top:0; left:0; width:100vw; height:100vh;
+      background:rgba(0,0,0,0.6); color:red; font-size:4vw; z-index:2;
+      justify-content:center; align-items:center; text-shadow:0 0 10px red;
     }
     #wake-button {
-      position: relative;
-      top: 40vh;
-      font-size: 2rem;
-      padding: 1rem 2rem;
-      border: none;
-      border-radius: 30px;
-      background: #ff4b2b;
-      color: white;
-      cursor: pointer;
-      z-index: 1;
+      position:relative; top:40vh; font-size:2rem; padding:1rem 2rem;
+      background:#ff4b2b; border:none; border-radius:30px; color:white;
+      cursor:pointer; z-index:1;
     }
     .meal-block {
-      position: relative;
-      background: rgba(0, 0, 0, 0.6);
-      border-radius: 20px;
-      margin: 1rem auto;
-      padding: 1rem;
-      width: 90%;
-      max-width: 350px;
-      font-size: 1.2rem;
-      z-index: 1;
+      background:rgba(0,0,0,0.6); border-radius:20px; margin:1rem auto;
+      padding:1rem; width:90%; max-width:350px; font-size:1.2rem; z-index:1;
     }
-    .meal-block button {
-      margin-top: 0.5rem;
-      padding: 0.5rem 1rem;
-      border-radius: 10px;
-      border: none;
-      background: #4caf50;
-      color: white;
-    }
-    .status {
-      margin-top: 0.5rem;
-      font-size: 2rem;
-    }
-    .done { color: #0f0; }
-    .missed { color: #f00; }
+    .meal-block button { margin-top:0.5rem; padding:0.5rem 1rem;
+      background:#4caf50; border:none; border-radius:10px; color:white;
+      cursor:pointer; }
+    .status { margin-top:0.5rem; font-size:2rem; }
+    .done { color:#0f0; } .missed { color:#f00; }
   </style>
 </head>
 <body>
+  <video id="background" autoplay muted loop src="frog_picnic.mp4"></video>
+  <video id="cerrada-video" muted loop src="cocina_cerrada.mp4"></video>
+  <div id="cocina-cerrada">Cocina Cerrada</div>
+  <button id="wake-button">¡Despertamos!</button>
+  <div id="meals"></div>
+  <audio id="alarm" src="cute.mp3" preload="auto"></audio>
 
-<video id="background" autoplay muted loop src="frog_picnic.mp4"></video>
-<video id="cerrada-video" autoplay muted loop src="cocina_cerrada.mp4"></video>
-<div id="cocina-cerrada">Cocina Cerrada</div>
+  <script>
+  const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfqhAxYZX-dYDBQySEUtxIpXmzMTRzYw83KFi20qkMC8gF21A/formResponse';
+  const CSV_URL  = 'https://docs.google.com/spreadsheets/d/1XEeQL89J-Hd1AiGTOwBbkXYgOInf_m9Z1tPvTI-S3d4/gviz/tq?tqx=out:csv&sheet=Meal%20Planner';
+  const PARTS    = ["Dadiva","Cypher","Harbinjer","Evyr"];
 
-<button id="wake-button">¡Despertamos!</button>
-<div id="meals"></div>
-<audio id="alarm" src="cute.mp3" preload="auto"></audio>
+  const wakeBtn = document.getElementById('wake-button'),
+        mealsDiv= document.getElementById('meals'),
+        cerrVid = document.getElementById('cerrada-video'),
+        cerrTxt = document.getElementById('cocina-cerrada');
 
-<script>
-const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfqhAxYZX-dYDBQySEUtxIpXmzMTRzYw83KFi20qkMC8gF21A/formResponse';
-const CSV_URL = 'https://docs.google.com/spreadsheets/d/1XEeQL89J-Hd1AiGTOwBbkXYgOInf_m9Z1tPvTI-S3d4/gviz/tq?tqx=out:csv&sheet=Meal%20Planner';
-const PARTS = ["Dadiva","Cypher","Harbinjer","Evyr"];
+  let meals=[], statusArr=[], refreshInterval;
 
-const wakeBtn = document.getElementById("wake-button");
-const mealsDiv = document.getElementById("meals");
-const cerradaVid = document.getElementById("cerrada-video");
-const cerradaScreen = document.getElementById("cocina-cerrada");
-const alarm = document.getElementById("alarm");
-
-let meals = [], statusArr = [];
-
-function stdTime(t) {
-  let [h,m] = t.split(':').map(Number);
-  const ap = h >=12 ? 'PM':'AM';
-  h = h %12 || 12;
-  return `${h}:${m.toString().padStart(2,'0')} ${ap}`;
-}
-
-function parseTime(t) {
-  const [h_m, ap] = t.split(' ');
-  let [h,m] = h_m.split(':').map(Number);
-  if(ap==='PM' && h<12) h+=12;
-  if(ap==='AM' && h===12) h=0;
-  const d = new Date(); d.setHours(h,m,0,0);
-  return d;
-}
-
-function submitMeal(i, st) {
-  const fd = new URLSearchParams();
-  fd.append('entry.1742440048', new Date().toISOString().split('T')[0]);
-  fd.append('entry.530673272','Auto');
-  fd.append('entry.867522782',st);
-  PARTS.forEach(p => fd.append('entry.916852138',p));
-  fetch(FORM_URL,{method:'POST',mode:'no-cors',body:fd});
-}
-
-function displayMeals(){
-  // Hide cocina cerrada by default; only show at the end
-  cerradaVid.style.display = 'none';
-  cerradaScreen.style.display = 'none';
-
-  mealsDiv.innerHTML = '';
-  const now = new Date();
-  let allDone = true;
-  meals.forEach((t,i)=>{
-    const mi=parseTime(t), diff=mi-now, late = now-mi;
-    const b=document.createElement('div');b.className='meal-block';
-    b.innerHTML=`<div>Comida ${i+1}: ${stdTime(t)}</div>`;
-    const st=document.createElement('div'); st.className='status';
-    if(statusArr[i]==='done'){ st.textContent='✅'; st.classList.add('done') }
-    else if(statusArr[i]==='missed'){ st.textContent='❌'; st.classList.add('missed') }
-    else if(diff>0){ st.textContent = `En ${Math.ceil(diff/60000)} min`; allDone=false; }
-    else if(late <= 40*60000){
-      const btn=document.createElement('button');
-      btn.textContent='Ir a Comer';
-      btn.onclick = ()=>{ 
-        statusArr[i]='done'; 
-        submitMeal(i,'comido'); 
-        displayMeals(); 
-        window.open('https://glitch.com/edit/#!/temporizador-para-nenes','_blank'); 
-      };
-      b.appendChild(btn);
-      st.textContent='';
-      allDone=false;
-    } else {
-      statusArr[i]='missed';
-      submitMeal(i,'perdido');
-      st.textContent='❌'; st.classList.add('missed');
-    }
-    b.appendChild(st); mealsDiv.appendChild(b);
-  });
-  if(allDone){
-    wakeBtn.style.display = 'none';
-    mealsDiv.style.display = 'none';
-    cerradaVid.style.display = 'block';
-    cerradaScreen.style.display = 'flex';
-    cerradaVid.play();
+  function stdTime(t){
+    let [h,m]=t.split(':').map(Number), ap=h>=12?'PM':'AM';
+    h=h%12||12;
+    return `${h}:${m.toString().padStart(2,'0')} ${ap}`;
   }
-}
 
-function loadCSV(){
-  fetch(CSV_URL).then(r => r.text()).then(csv => {
-    const rows = csv.trim().split('\n').map(r => r.split(','));
-    const last = rows[rows.length - 1];
-    const today = new Date().toISOString().split('T')[0];
-    const nowHour = new Date().getHours();
+  function parseTime(t){
+    const [hm,ap]=t.split(' '), [h,m]=hm.split(':').map(Number),
+          d=new Date();
+    if(ap==='PM'&&h<12) d.setHours(h+12,m);
+    else if(ap==='AM'&&h===12) d.setHours(0,m);
+    else d.setHours(h,m);
+    return d;
+  }
 
-    if(last[1] === today && last.length >= 10){
-      meals = [last[6], last[7], last[8], last[9]];
-      statusArr = ['', '', '', ''];
-      wakeBtn.style.display = 'none';
-      mealsDiv.style.display = 'block';
+  function submitMeal(i, st){
+    const fd=new URLSearchParams();
+    fd.append('entry.1742440048', new Date().toISOString().split('T')[0]);
+    fd.append('entry.530673272','Auto');
+    fd.append('entry.867522782', st);
+    PARTS.forEach(p=>fd.append('entry.916852138',p));
+    fetch(FORM_URL,{method:'POST',mode:'no-cors',body:fd});
+  }
 
-      cerradaVid.style.display = 'none';
-      cerradaScreen.style.display = 'none';
+  function displayMeals(){
+    mealsDiv.innerHTML='';
+    cerrVid.style.display='none';
+    cerrTxt.style.display='none';
 
-      displayMeals();
-      setInterval(displayMeals, 60000);
-    } else {
-      meals = [];
-      statusArr = [];
-      mealsDiv.innerHTML = '';
+    const now=new Date(), lastMealTime=parseTime(meals[meals.length-1]),
+          ended=now>new Date(lastMealTime.getTime()+40*60000);
 
-      if(nowHour < 7){
-        wakeBtn.style.display = 'none';
-        mealsDiv.innerHTML = '<p>La cocina estará abierta a las 7 AM.</p>';
+    let allDone=true;
 
-        cerradaVid.style.display = 'none';
-        cerradaScreen.style.display = 'none';
+    meals.forEach((t,i)=>{
+      const mt=parseTime(t), diff=mt-now, late=now-mt;
+      const div=document.createElement('div');
+      div.className='meal-block';
+      div.innerHTML=`<div>Comida ${i+1}: ${stdTime(t)}</div>`;
+      const st=document.createElement('div'); st.className='status';
+
+      if(statusArr[i]==='done'){ st.textContent='✅'; st.classList.add('done'); }
+      else if(statusArr[i]==='missed'){ st.textContent='❌'; st.classList.add('missed'); }
+      else if(diff>0){ st.textContent=`En ${Math.ceil(diff/60000)} min`; allDone=false; }
+      else if(late<=40*60000){
+        const btn=document.createElement('button');
+        btn.textContent='Ir a Comer';
+        btn.onclick = ()=>{ statusArr[i]='done'; submitMeal(i,'comido'); displayMeals(); window.open('https://glitch.com/edit/#!/temporizador-para-nenes','_blank'); };
+        div.appendChild(btn); st.textContent=''; allDone=false;
       } else {
-        wakeBtn.style.display = 'inline-block';
-
-        mealsDiv.innerHTML = '';
-        cerradaVid.style.display = 'none';
-        cerradaScreen.style.display = 'none';
+        statusArr[i]='missed'; submitMeal(i,'perdido'); st.textContent='❌'; st.classList.add('missed');
       }
+
+      div.appendChild(st);
+      mealsDiv.appendChild(div);
+    });
+
+    if(ended){
+      wakeBtn.style.display='none';
+      mealsDiv.style.display='none';
+      clearInterval(refreshInterval);
+      cerrVid.style.display='block';
+      cerrTxt.style.display='flex';
+      cerrVid.play().catch(e=>console.warn(e));
+    } else {
+      mealsDiv.style.display='block';
     }
-  }).catch(e => {
-    mealsDiv.innerHTML = '<p>⚠️ Error cargando horarios.</p>';
-    wakeBtn.style.display = 'inline-block';
-    cerradaVid.style.display = 'none';
-    cerradaScreen.style.display = 'none';
-  });
-}
+  }
 
-wakeBtn.onclick = () => {
-  const fd = new URLSearchParams();
-  fd.append('entry.1742440048', new Date().toISOString().split('T')[0]);
-  fd.append('entry.530673272', 'Auto');
-  fetch(FORM_URL, { method: 'POST', mode: 'no-cors', body: fd })
-    .then(() => setTimeout(loadCSV, 4000));
-};
+  function loadCSV(){
+    console.log('Loading CSV...');
+    fetch(CSV_URL).then(r=>r.text()).then(csv=>{
+      const rows=csv.trim().split('\n').map(r=>r.split(','));
+      const last=rows[rows.length-1];
+      console.log('Last:', last);
+      const today=new Date().toISOString().split('T')[0];
 
-window.onload = loadCSV;
-</script>
+      if(last[1]===today && last.length>=10){
+        meals=[last[6],last[7],last[8],last[9]];
+        statusArr=['','','',''];
+        console.log('Today meals:',meals);
+
+        wakeBtn.style.display='none';
+        displayMeals();
+        if(refreshInterval) clearInterval(refreshInterval);
+        refreshInterval = setInterval(displayMeals,60000);
+      } else {
+        console.log('No wake-up yet today');
+        meals=[];
+        statusArr=[];
+        mealsDiv.innerHTML='';
+        wakeBtn.style.display='inline-block';
+        wakeBtn.disabled=false;
+      }
+    }).catch(e=>{
+      console.error('Error CSV:', e);
+      mealsDiv.innerHTML='<p>⚠️ Error cargando horarios.</p>';
+      wakeBtn.style.display='inline-block';
+      wakeBtn.disabled=false;
+    });
+  }
+
+  wakeBtn.onclick = ()=>{
+    wakeBtn.disabled=true;
+    console.log('Form submitted; fetching in 8s…');
+    const fd=new URLSearchParams();
+    fd.append('entry.1742440048', new Date().toISOString().split('T')[0]);
+    fd.append('entry.530673272','Auto');
+    fetch(FORM_URL,{method:'POST',mode:'no-cors',body:fd});
+    setTimeout(loadCSV,8000);
+  };
+
+  window.onload = loadCSV;
+  </script>
 </body>
 </html>
