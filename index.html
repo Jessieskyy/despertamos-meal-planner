@@ -122,11 +122,14 @@ function submitMeal(i, st) {
   PARTS.forEach(p => fd.append('entry.916852138',p));
   fetch(FORM_URL,{method:'POST',mode:'no-cors',body:fd});
 }
+function displayMeals(){
+  // Hide cocina cerrada by default; only show at the end
+  cerradaVid.style.display = 'none';
+  cerradaScreen.style.display = 'none';
 
-function displayMeals() {
-  mealsDiv.innerHTML='';
-  const now=new Date();
-  let allDone=true;
+  mealsDiv.innerHTML = '';
+  const now = new Date();
+  let allDone = true;
   meals.forEach((t,i)=>{
     const mi=parseTime(t), diff=mi-now, late = now-mi;
     const b=document.createElement('div');b.className='meal-block';
@@ -158,44 +161,50 @@ function displayMeals() {
   }
 }
 
-function loadCSV() {
+function loadCSV(){
   fetch(CSV_URL).then(r => r.text()).then(csv => {
     const rows = csv.trim().split('\n').map(r => r.split(','));
-    if (rows.length < 2) throw new Error('No data');
-
     const last = rows[rows.length - 1];
     const today = new Date().toISOString().split('T')[0];
+    const nowHour = new Date().getHours();
 
-    // Expect at least 10 columns: A=timestamp, B=date, G-J=meal times
-    if (last[1] === today && last.length >= 10) {
+    if(last[1] === today && last.length >= 10){
       meals = [last[6], last[7], last[8], last[9]];
-      statusArr = ['pending', 'pending', 'pending', 'pending'];
-
-      // Show meals if any upcoming or unfinished
+      statusArr = ['', '', '', ''];
       wakeBtn.style.display = 'none';
+      mealsDiv.style.display = 'block';
+
+      cerradaVid.style.display = 'none';
+      cerradaScreen.style.display = 'none';
+
       displayMeals();
       setInterval(displayMeals, 60000);
     } else {
-      // No meals today yet → allow wake button after 7 am
-      const nowH = new Date().getHours();
-      if (nowH >= 7) {
-        wakeBtn.style.display = 'inline-block';
-        mealsDiv.innerHTML = '';
-      } else {
+      meals = [];
+      statusArr = [];
+      mealsDiv.innerHTML = '';
+
+      if(nowHour < 7){
         wakeBtn.style.display = 'none';
-        mealsDiv.innerHTML = '<p>La cocina estará abierta a las 7 AM.</p>';
+        mealsDiv.innerHTML = '<p>La cocina estará abierta a las 7 AM.</p>';
+
+        cerradaVid.style.display = 'none';
+        cerradaScreen.style.display = 'none';
+      } else {
+        wakeBtn.style.display = 'inline-block';
+
+        mealsDiv.innerHTML = '';
+        cerradaVid.style.display = 'none';
+        cerradaScreen.style.display = 'none';
       }
-      cerradaVid.style.display = 'none';
-      cerradaScreen.style.display = 'none';
     }
-  }).catch(err => {
-    console.error(err);
+  }).catch(e => {
     mealsDiv.innerHTML = '<p>⚠️ Error cargando horarios.</p>';
     wakeBtn.style.display = 'inline-block';
+    cerradaVid.style.display = 'none';
+    cerradaScreen.style.display = 'none';
   });
 }
-
-window.onload = loadCSV;
 
   const fd=new URLSearchParams();
   fd.append('entry.1742440048',new Date().toISOString().split('T')[0]);
