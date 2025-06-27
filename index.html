@@ -1,14 +1,12 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Planificador de Comidas</title>
   <style>
     html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
+      margin: 0; padding: 0;
+      width: 100%; height: 100%;
       overflow: hidden;
       font-family: 'Comic Sans MS', cursive;
       background: black;
@@ -16,8 +14,7 @@
       text-align: center;
     }
     video#background, video#cerrada-video {
-      position: fixed;
-      top: 0; left: 0;
+      position: fixed; top: 0; left: 0;
       width: 100vw; height: 100vh;
       object-fit: cover;
       z-index: -1;
@@ -79,7 +76,7 @@
 
 <video id="background" autoplay muted loop src="frog_picnic.mp4"></video>
 <video id="cerrada-video" autoplay muted loop src="cocina_cerrada.mp4" style="display:none;"></video>
-<div id="cocina-cerrada">Cocina Cerrada</div>
+<div id="cocina-cerrada" style="display:none;">Cocina Cerrada</div>
 
 <button id="wake-button">¡Despertamos!</button>
 <div id="meals"></div>
@@ -88,38 +85,42 @@
 <script>
 const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfqhAxYZX-dYDBQySEUtxIpXmzMTRzYw83KFi20qkMC8gF21A/formResponse';
 const CSV_URL = 'https://docs.google.com/spreadsheets/d/1XEeQL89J-Hd1AiGTOwBbkXYgOInf_m9Z1tPvTI-S3d4/gviz/tq?tqx=out:csv&sheet=Meal%20Planner';
-const PARTICIPANTS = ["Dadiva", "Cypher", "Harbinjer", "Evyr"];
+const PARTS = ["Dadiva","Cypher","Harbinjer","Evyr"];
 
 const wakeBtn = document.getElementById("wake-button");
 const mealsDiv = document.getElementById("meals");
 const cerradaVid = document.getElementById("cerrada-video");
-const cerradaOverlay = document.getElementById("cocina-cerrada");
+const cerradaScreen = document.getElementById("cocina-cerrada");
+const alarm = document.getElementById("alarm");
 
-let meals = [], statuses = [];
+let meals = [], statusArr = [];
 
 function stdTime(t) {
-  let [h, m] = t.split(':').map(Number);
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12 || 12;
-  return `${h}:${m.toString().padStart(2, '0')} ${ampm}`;
+  let [h,m] = t.split(':').map(Number);
+  const ap = h >=12 ? 'PM':'AM';
+  h = h %12 || 12;
+  return `${h}:${m.toString().padStart(2,'0')} ${ap}`;
 }
 
 function parseTime(t) {
-  const [hm, ampm] = t.trim().split(' ');
-  let [h, m] = hm.split(':').map(Number);
-  if (ampm === 'PM' && h < 12) h += 12;
-  if (ampm === 'AM' && h === 12) h = 0;
-  const d = new Date(); d.setHours(h, m, 0, 0);
+  if(!t || t.trim() === '') return null;
+  const parts = t.split(' ');
+  if(parts.length !== 2) return null;
+  const [h_m, ap] = parts;
+  let [h,m] = h_m.split(':').map(Number);
+  if(ap==='PM' && h<12) h+=12;
+  if(ap==='AM' && h===12) h=0;
+  const d = new Date(); d.setHours(h,m,0,0);
   return d;
 }
 
-function submitMeal(i, status) {
-  const formData = new URLSearchParams();
-  formData.append("entry.1742440048", new Date().toISOString().split("T")[0]);
-  formData.append("entry.530673272", "Auto");
-  formData.append("entry.867522782", status);
-  PARTICIPANTS.forEach(p => formData.append("entry.916852138", p));
-  fetch(FORM_URL, { method: "POST", mode: "no-cors", body: formData });
+function submitMeal(i, st) {
+  const fd = new URLSearchParams();
+  fd.append('entry.1742440048', new Date().toISOString().split('T')[0]);
+  fd.append('entry.530673272','Auto');
+  fd.append('entry.867522782',st);
+  PARTS.forEach(p => fd.append('entry.916852138',p));
+  fetch(FORM_URL,{method:'POST',mode:'no-cors',body:fd});
 }
 
 function displayMeals() {
@@ -127,90 +128,142 @@ function displayMeals() {
   const now = new Date();
   let allDone = true;
 
-  meals.forEach((t, i) => {
-    const mealTime = parseTime(t);
-    const diff = mealTime - now;
-    const late = now - mealTime;
-    const block = document.createElement("div");
-    block.className = "meal-block";
-    block.innerHTML = `<div>Comida ${i + 1}: ${stdTime(t)}</div>`;
-    const status = document.createElement("div");
-    status.className = "status";
+  console.log('Displaying meals:', meals);
+  console.log('Status array:', statusArr);
 
-    if (statuses[i] === "done") {
-      status.textContent = "✅"; status.classList.add("done");
-    } else if (statuses[i] === "missed") {
-      status.textContent = "❌"; status.classList.add("missed");
-    } else if (diff > 0) {
-      status.textContent = `En ${Math.ceil(diff / 60000)} min`;
-      allDone = false;
-    } else if (late <= 40 * 60000) {
-      const btn = document.createElement("button");
-      btn.textContent = "Ir a Comer";
-      btn.onclick = () => {
-        statuses[i] = "done";
-        submitMeal(i, "comido");
-        displayMeals();
-        window.open("https://glitch.com/edit/#!/temporizador-para-nenes", "_blank");
-      };
-      block.appendChild(btn);
+  for(let i = 0; i < meals.length; i++) {
+    const timeStr = meals[i];
+    const mealDate = parseTime(timeStr);
+
+    const mealBlock = document.createElement('div');
+    mealBlock.className = 'meal-block';
+    mealBlock.innerHTML = `<div>Comida ${i+1}: ${timeStr ? stdTime(timeStr) : 'Sin hora'}</div>`;
+
+    const statusDiv = document.createElement('div');
+    statusDiv.className = 'status';
+
+    if (!mealDate) {
+      // No valid meal time found — treat as pending
+      statusDiv.textContent = '⏳';
       allDone = false;
     } else {
-      statuses[i] = "missed";
-      submitMeal(i, "perdido");
-      status.textContent = "❌"; status.classList.add("missed");
+      const diff = mealDate - now;
+      const late = now - mealDate;
+
+      if(statusArr[i] === 'done') {
+        statusDiv.textContent = '✅';
+        statusDiv.classList.add('done');
+      } else if(statusArr[i] === 'missed') {
+        statusDiv.textContent = '❌';
+        statusDiv.classList.add('missed');
+      } else if(diff > 0) {
+        statusDiv.textContent = `En ${Math.ceil(diff/60000)} min`;
+        allDone = false;
+      } else if(late <= 40*60000) {
+        const btn = document.createElement('button');
+        btn.textContent = 'Ir a Comer';
+        btn.onclick = () => {
+          statusArr[i] = 'done';
+          submitMeal(i, 'comido');
+          displayMeals();
+          window.open('https://glitch.com/edit/#!/temporizador-para-nenes', '_blank');
+        };
+        mealBlock.appendChild(btn);
+        statusDiv.textContent = '';
+        allDone = false;
+      } else {
+        statusArr[i] = 'missed';
+        submitMeal(i, 'perdido');
+        statusDiv.textContent = '❌';
+        statusDiv.classList.add('missed');
+      }
     }
 
-    block.appendChild(status);
-    mealsDiv.appendChild(block);
-  });
+    mealBlock.appendChild(statusDiv);
+    mealsDiv.appendChild(mealBlock);
+  }
 
-  if (allDone && meals.length > 0) {
+  if(allDone && meals.length === 4 && meals.every(t => t && t.trim() !== '')) {
     wakeBtn.style.display = 'none';
     mealsDiv.style.display = 'none';
     cerradaVid.style.display = 'block';
-    cerradaOverlay.style.display = 'flex';
+    cerradaScreen.style.display = 'flex';
     cerradaVid.play();
+  } else {
+    // Show wake button if current time >= 7am and no meals done yet
+    const nowHour = new Date().getHours();
+    if(nowHour >= 7) {
+      wakeBtn.style.display = 'none';
+    } else {
+      wakeBtn.style.display = 'inline-block';
+      mealsDiv.style.display = 'block';
+      cerradaVid.style.display = 'none';
+      cerradaScreen.style.display = 'none';
+    }
   }
 }
 
-function loadCSV() {
+function loadCSV(){
   fetch(CSV_URL)
-    .then(res => res.text())
-    .then(csv => {
-      const rows = csv.trim().split('\n').map(r => r.split(','));
-      const last = rows[rows.length - 1];
-      const today = new Date().toISOString().split('T')[0];
+  .then(r => r.text())
+  .then(csv => {
+    const rows = csv.trim().split('\n').map(r => r.split(','));
+    const last = rows[rows.length - 1];
+    const today = new Date().toISOString().split('T')[0];
 
-      if (last[1] === today && last.length >= 10) {
-        meals = [last[6], last[7], last[8], last[9]];
-        statuses = ['', '', '', ''];
+    console.log('CSV last row:', last);
+    console.log('Today:', today);
+
+    if(last[1] === today && last.length >= 10) {
+      meals = [last[6], last[7], last[8], last[9]];
+      statusArr = ['', '', '', ''];
+
+      wakeBtn.style.display = 'none';
+      mealsDiv.style.display = 'block';
+      cerradaVid.style.display = 'none';
+      cerradaScreen.style.display = 'none';
+
+      displayMeals();
+      setInterval(displayMeals, 60000);
+    } else {
+      // If before 7am, show message; else show wake button
+      const nowHour = new Date().getHours();
+      if(nowHour < 7) {
         wakeBtn.style.display = 'none';
-        displayMeals();
-        setInterval(displayMeals, 60000);
+        mealsDiv.innerHTML = '<p>La cocina estará abierta a las 7 AM.</p>';
+        cerradaVid.style.display = 'none';
+        cerradaScreen.style.display = 'none';
       } else {
-        const hour = new Date().getHours();
-        if (hour >= 7) {
-          wakeBtn.style.display = 'inline-block';
-        } else {
-          wakeBtn.style.display = 'none';
-          mealsDiv.innerHTML = '<p>La cocina estará abierta a las 7 AM.</p>';
-        }
+        wakeBtn.style.display = 'inline-block';
+        mealsDiv.innerHTML = '';
+        cerradaVid.style.display = 'none';
+        cerradaScreen.style.display = 'none';
       }
-    })
-    .catch(() => mealsDiv.innerHTML = '<p>⚠️ Error cargando horarios.</p>');
+    }
+  })
+  .catch(err => {
+    console.error('Error loading CSV:', err);
+    mealsDiv.innerHTML = '<p>⚠️ Error cargando horarios.</p>';
+    wakeBtn.style.display = 'inline-block';
+    cerradaVid.style.display = 'none';
+    cerradaScreen.style.display = 'none';
+  });
 }
 
 wakeBtn.onclick = () => {
   const fd = new URLSearchParams();
-  fd.append("entry.1742440048", new Date().toISOString().split("T")[0]);
-  fd.append("entry.530673272", "Auto");
+  fd.append('entry.1742440048', new Date().toISOString().split('T')[0]);
+  fd.append('entry.530673272', 'Auto');
 
-  fetch(FORM_URL, { method: "POST", mode: "no-cors", body: fd })
-    .then(() => setTimeout(loadCSV, 4000));
+  fetch(FORM_URL, { method: 'POST', mode: 'no-cors', body: fd })
+  .then(() => {
+    wakeBtn.style.display = 'none';
+    setTimeout(loadCSV, 4000);
+  });
 };
 
 window.onload = loadCSV;
 </script>
+
 </body>
 </html>
