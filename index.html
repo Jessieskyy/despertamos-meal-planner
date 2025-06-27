@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>Planificador de Comidas</title>
   <style>
     html, body {
-      margin: 0; padding: 0;
-      width: 100%; height: 100%;
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
       overflow: hidden;
       font-family: 'Comic Sans MS', cursive;
       background: black;
@@ -14,7 +16,8 @@
       text-align: center;
     }
     video#background, video#cerrada-video {
-      position: fixed; top: 0; left: 0;
+      position: fixed;
+      top: 0; left: 0;
       width: 100vw; height: 100vh;
       object-fit: cover;
       z-index: -1;
@@ -75,8 +78,8 @@
 <body>
 
 <video id="background" autoplay muted loop src="frog_picnic.mp4"></video>
-<video id="cerrada-video" autoplay muted loop src="cocina_cerrada.mp4" style="display:none;"></video>
-<div id="cocina-cerrada" style="display:none;">Cocina Cerrada</div>
+<video id="cerrada-video" autoplay muted loop src="cocina_cerrada.mp4"></video>
+<div id="cocina-cerrada">Cocina Cerrada</div>
 
 <button id="wake-button">¡Despertamos!</button>
 <div id="meals"></div>
@@ -103,10 +106,7 @@ function stdTime(t) {
 }
 
 function parseTime(t) {
-  if(!t || t.trim() === '') return null;
-  const parts = t.split(' ');
-  if(parts.length !== 2) return null;
-  const [h_m, ap] = parts;
+  const [h_m, ap] = t.split(' ');
   let [h,m] = h_m.split(':').map(Number);
   if(ap==='PM' && h<12) h+=12;
   if(ap==='AM' && h===12) h=0;
@@ -124,146 +124,87 @@ function submitMeal(i, st) {
 }
 
 function displayMeals() {
-  mealsDiv.innerHTML = '';
-  const now = new Date();
-  let allDone = true;
-
-  console.log('Displaying meals:', meals);
-  console.log('Status array:', statusArr);
-
-  for(let i = 0; i < meals.length; i++) {
-    const timeStr = meals[i];
-    const mealDate = parseTime(timeStr);
-
-    const mealBlock = document.createElement('div');
-    mealBlock.className = 'meal-block';
-    mealBlock.innerHTML = `<div>Comida ${i+1}: ${timeStr ? stdTime(timeStr) : 'Sin hora'}</div>`;
-
-    const statusDiv = document.createElement('div');
-    statusDiv.className = 'status';
-
-    if (!mealDate) {
-      // No valid meal time found — treat as pending
-      statusDiv.textContent = '⏳';
-      allDone = false;
+  mealsDiv.innerHTML='';
+  const now=new Date();
+  let allDone=true;
+  meals.forEach((t,i)=>{
+    const mi=parseTime(t), diff=mi-now, late = now-mi;
+    const b=document.createElement('div');b.className='meal-block';
+    b.innerHTML=`<div>Comida ${i+1}: ${stdTime(t)}</div>`;
+    const st=document.createElement('div'); st.className='status';
+    if(statusArr[i]==='done'){ st.textContent='✅'; st.classList.add('done') }
+    else if(statusArr[i]==='missed'){ st.textContent='❌'; st.classList.add('missed') }
+    else if(diff>0){ st.textContent = `En ${Math.ceil(diff/60000)} min`; allDone=false; }
+    else if(late <= 40*60000){
+      const btn=document.createElement('button');
+      btn.textContent='Ir a Comer';
+      btn.onclick = ()=>{ statusArr[i]='done'; submitMeal(i,'comido'); displayMeals(); window.open('https://glitch.com/edit/#!/temporizador-para-nenes','_blank'); };
+      b.appendChild(btn);
+      st.textContent='';
+      allDone=false;
     } else {
-      const diff = mealDate - now;
-      const late = now - mealDate;
-
-      if(statusArr[i] === 'done') {
-        statusDiv.textContent = '✅';
-        statusDiv.classList.add('done');
-      } else if(statusArr[i] === 'missed') {
-        statusDiv.textContent = '❌';
-        statusDiv.classList.add('missed');
-      } else if(diff > 0) {
-        statusDiv.textContent = `En ${Math.ceil(diff/60000)} min`;
-        allDone = false;
-      } else if(late <= 40*60000) {
-        const btn = document.createElement('button');
-        btn.textContent = 'Ir a Comer';
-        btn.onclick = () => {
-          statusArr[i] = 'done';
-          submitMeal(i, 'comido');
-          displayMeals();
-          window.open('https://glitch.com/edit/#!/temporizador-para-nenes', '_blank');
-        };
-        mealBlock.appendChild(btn);
-        statusDiv.textContent = '';
-        allDone = false;
-      } else {
-        statusArr[i] = 'missed';
-        submitMeal(i, 'perdido');
-        statusDiv.textContent = '❌';
-        statusDiv.classList.add('missed');
-      }
+      statusArr[i]='missed';
+      submitMeal(i,'perdido');
+      st.textContent='❌'; st.classList.add('missed');
     }
-
-    mealBlock.appendChild(statusDiv);
-    mealsDiv.appendChild(mealBlock);
-  }
-
-  if(allDone && meals.length === 4 && meals.every(t => t && t.trim() !== '')) {
-    wakeBtn.style.display = 'none';
-    mealsDiv.style.display = 'none';
-    cerradaVid.style.display = 'block';
-    cerradaScreen.style.display = 'flex';
+    b.appendChild(st); mealsDiv.appendChild(b);
+  });
+  if(allDone){
+    wakeBtn.style.display='none';
+    mealsDiv.style.display='none';
+    cerradaVid.style.display='block';
+    cerradaScreen.style.display='flex';
     cerradaVid.play();
-  } else {
-    // Show wake button if current time >= 7am and no meals done yet
-    const nowHour = new Date().getHours();
-    if(nowHour >= 7) {
-      wakeBtn.style.display = 'none';
-    } else {
-      wakeBtn.style.display = 'inline-block';
-      mealsDiv.style.display = 'block';
-      cerradaVid.style.display = 'none';
-      cerradaScreen.style.display = 'none';
-    }
   }
 }
 
-function loadCSV(){
-  fetch(CSV_URL)
-  .then(r => r.text())
-  .then(csv => {
+function loadCSV() {
+  fetch(CSV_URL).then(r => r.text()).then(csv => {
     const rows = csv.trim().split('\n').map(r => r.split(','));
+    if (rows.length < 2) throw new Error('No data');
+
     const last = rows[rows.length - 1];
     const today = new Date().toISOString().split('T')[0];
 
-    console.log('CSV last row:', last);
-    console.log('Today:', today);
-
-    if(last[1] === today && last.length >= 10) {
+    // Expect at least 10 columns: A=timestamp, B=date, G-J=meal times
+    if (last[1] === today && last.length >= 10) {
       meals = [last[6], last[7], last[8], last[9]];
-      statusArr = ['', '', '', ''];
+      statusArr = ['pending', 'pending', 'pending', 'pending'];
 
+      // Show meals if any upcoming or unfinished
       wakeBtn.style.display = 'none';
-      mealsDiv.style.display = 'block';
-      cerradaVid.style.display = 'none';
-      cerradaScreen.style.display = 'none';
-
       displayMeals();
       setInterval(displayMeals, 60000);
     } else {
-      // If before 7am, show message; else show wake button
-      const nowHour = new Date().getHours();
-      if(nowHour < 7) {
-        wakeBtn.style.display = 'none';
-        mealsDiv.innerHTML = '<p>La cocina estará abierta a las 7 AM.</p>';
-        cerradaVid.style.display = 'none';
-        cerradaScreen.style.display = 'none';
-      } else {
+      // No meals today yet → allow wake button after 7 am
+      const nowH = new Date().getHours();
+      if (nowH >= 7) {
         wakeBtn.style.display = 'inline-block';
         mealsDiv.innerHTML = '';
-        cerradaVid.style.display = 'none';
-        cerradaScreen.style.display = 'none';
+      } else {
+        wakeBtn.style.display = 'none';
+        mealsDiv.innerHTML = '<p>La cocina estará abierta a las 7 AM.</p>';
       }
+      cerradaVid.style.display = 'none';
+      cerradaScreen.style.display = 'none';
     }
-  })
-  .catch(err => {
-    console.error('Error loading CSV:', err);
+  }).catch(err => {
+    console.error(err);
     mealsDiv.innerHTML = '<p>⚠️ Error cargando horarios.</p>';
     wakeBtn.style.display = 'inline-block';
-    cerradaVid.style.display = 'none';
-    cerradaScreen.style.display = 'none';
   });
 }
 
-wakeBtn.onclick = () => {
-  const fd = new URLSearchParams();
-  fd.append('entry.1742440048', new Date().toISOString().split('T')[0]);
-  fd.append('entry.530673272', 'Auto');
+window.onload = loadCSV;
 
-  fetch(FORM_URL, { method: 'POST', mode: 'no-cors', body: fd })
-  .then(() => {
-    wakeBtn.style.display = 'none';
-    setTimeout(loadCSV, 4000);
-  });
+  const fd=new URLSearchParams();
+  fd.append('entry.1742440048',new Date().toISOString().split('T')[0]);
+  fd.append('entry.530673272','Auto');
+  fetch(FORM_URL,{method:'POST',mode:'no-cors',body:fd})
+    .then(()=>setTimeout(loadCSV,4000));
 };
 
 window.onload = loadCSV;
 </script>
-
 </body>
 </html>
