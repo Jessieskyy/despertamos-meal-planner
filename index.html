@@ -2,77 +2,74 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Despertar y Comidas</title>
+  <title>Planificador de Comidas</title>
   <style>
     html, body {
       margin: 0;
       padding: 0;
-      font-family: 'Comic Sans MS', cursive;
+      width: 100%;
+      height: 100%;
       overflow: hidden;
+      font-family: 'Comic Sans MS', cursive;
+      background: black;
       color: white;
       text-align: center;
-      background-color: black;
     }
-    video#background {
+    video#background, video#cerrada-video {
       position: fixed;
       top: 0; left: 0;
       width: 100vw; height: 100vh;
       object-fit: cover;
-      z-index: -2;
+      z-index: -1;
     }
     #cocina-cerrada {
       display: none;
       position: fixed;
       top: 0; left: 0;
       width: 100vw; height: 100vh;
-      background: rgba(0,0,0,0.8);
+      background: rgba(0,0,0,0.6);
       color: red;
       font-size: 4vw;
-      z-index: 99;
+      z-index: 2;
+      display: flex;
       justify-content: center;
       align-items: center;
-      text-transform: uppercase;
-      font-weight: bold;
       text-shadow: 0 0 10px red;
     }
-    video#cerrada-video {
-      display: none;
-      position: fixed;
-      top: 0; left: 0;
-      width: 100vw; height: 100vh;
-      object-fit: cover;
-      z-index: 98;
-    }
     #wake-button {
-      margin-top: 3rem;
+      position: relative;
+      top: 40vh;
       font-size: 2rem;
       padding: 1rem 2rem;
-      border-radius: 30px;
       border: none;
+      border-radius: 30px;
       background: #ff4b2b;
       color: white;
       cursor: pointer;
+      z-index: 1;
     }
     .meal-block {
+      position: relative;
       background: rgba(0, 0, 0, 0.6);
       border-radius: 20px;
       margin: 1rem auto;
       padding: 1rem;
-      max-width: 400px;
+      width: 90%;
+      max-width: 350px;
       font-size: 1.2rem;
+      z-index: 1;
     }
     .meal-block button {
-      margin-top: 10px;
+      margin-top: 0.5rem;
       padding: 0.5rem 1rem;
       border-radius: 10px;
       border: none;
       background: #4caf50;
       color: white;
-      font-size: 1rem;
     }
     .status {
-      font-size: 2rem;
       margin-top: 0.5rem;
+      font-size: 2rem;
     }
     .done { color: #0f0; }
     .missed { color: #f00; }
@@ -80,199 +77,113 @@
 </head>
 <body>
 
-<!-- Background Video -->
-<video id="background" autoplay muted loop>
-  <source src="frog_picnic.mp4" type="video/mp4">
-</video>
-
-<!-- Cocina Cerrada -->
-<video id="cerrada-video" src="cocina_cerrada.mp4" autoplay muted loop></video>
+<video id="background" autoplay muted loop src="frog_picnic.mp4"></video>
+<video id="cerrada-video" autoplay muted loop src="cocina_cerrada.mp4"></video>
 <div id="cocina-cerrada">Cocina Cerrada</div>
 
-<!-- Wake Button -->
 <button id="wake-button">¡Despertamos!</button>
-
-<!-- Meals Display -->
 <div id="meals"></div>
-
-<!-- Alarm -->
 <audio id="alarm" src="cute.mp3" preload="auto"></audio>
 
 <script>
-const GOOGLE_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSfqhAxYZX-dYDBQySEUtxIpXmzMTRzYw83KFi20qkMC8gF21A/formResponse";
-const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1XEeQL89J-Hd1AiGTOwBbkXYgOInf_m9Z1tPvTI-S3d4/gviz/tq?tqx=out:csv&sheet=Meal%20Planner";
-const PARTICIPANTS = ["Dadiva", "Cypher", "Harbinjer", "Evyr"];
+const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfqhAxYZX-dYDBQySEUtxIpXmzMTRzYw83KFi20qkMC8gF21A/formResponse';
+const CSV_URL = 'https://docs.google.com/spreadsheets/d/1XEeQL89J-Hd1AiGTOwBbkXYgOInf_m9Z1tPvTI-S3d4/gviz/tq?tqx=out:csv&sheet=Meal%20Planner';
+const PARTS = ["Dadiva","Cypher","Harbinjer","Evyr"];
 
-const wakeButton = document.getElementById("wake-button");
+const wakeBtn = document.getElementById("wake-button");
 const mealsDiv = document.getElementById("meals");
-const cerradaVideo = document.getElementById("cerrada-video");
+const cerradaVid = document.getElementById("cerrada-video");
 const cerradaScreen = document.getElementById("cocina-cerrada");
 const alarm = document.getElementById("alarm");
 
-let meals = [];
-let mealStatus = [];
+let meals = [], statusArr = [];
 
-function standardTime(t) {
-  let [h, m] = t.split(':').map(Number);
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12 || 12;
-  return `${h}:${m.toString().padStart(2, '0')} ${ampm}`;
+function stdTime(t) {
+  let [h,m] = t.split(':').map(Number);
+  const ap = h >=12 ? 'PM':'AM';
+  h = h %12 || 12;
+  return `${h}:${m.toString().padStart(2,'0')} ${ap}`;
 }
 
 function parseTime(t) {
-  const [h, mPart] = t.split(':');
-  const [m, meridian] = mPart.split(' ');
-  let hour = parseInt(h);
-  const minute = parseInt(m);
-  if (meridian === "PM" && hour !== 12) hour += 12;
-  if (meridian === "AM" && hour === 12) hour = 0;
-  const d = new Date();
-  d.setHours(hour, minute, 0, 0);
+  const [h_m, ap] = t.split(' ');
+  let [h,m] = h_m.split(':').map(Number);
+  if(ap==='PM' && h<12) h+=12;
+  if(ap==='AM' && h===12) h=0;
+  const d = new Date(); d.setHours(h,m,0,0);
   return d;
 }
 
-function submitMeal(index, status) {
-  const formData = new URLSearchParams();
-  const todayStr = new Date().toISOString().split("T")[0];
-  formData.append("entry.1742440048", todayStr);
-  formData.append("entry.530673272", "Auto");
-  formData.append("entry.867522782", status);
-  PARTICIPANTS.forEach(p => formData.append("entry.916852138", p));
-
-  fetch(GOOGLE_FORM_URL, {
-    method: 'POST',
-    mode: 'no-cors',
-    body: formData
-  });
+function submitMeal(i, st) {
+  const fd = new URLSearchParams();
+  fd.append('entry.1742440048', new Date().toISOString().split('T')[0]);
+  fd.append('entry.530673272','Auto');
+  fd.append('entry.867522782',st);
+  PARTS.forEach(p => fd.append('entry.916852138',p));
+  fetch(FORM_URL,{method:'POST',mode:'no-cors',body:fd});
 }
 
-function showMeals() {
-  mealsDiv.innerHTML = "";
-  const now = new Date();
-  let allDone = true;
-
-  meals.forEach((time, i) => {
-    const mealTime = parseTime(time);
-    const diff = mealTime - now;
-    const late = now - mealTime;
-
-    const div = document.createElement("div");
-    div.className = "meal-block";
-
-    const label = document.createElement("div");
-    label.textContent = `Comida ${i + 1}: ${standardTime(time)}`;
-    div.appendChild(label);
-
-    const status = document.createElement("div");
-    status.className = "status";
-
-    if (mealStatus[i] === "done") {
-      status.textContent = "✅";
-      status.classList.add("done");
-    } else if (mealStatus[i] === "missed") {
-      status.textContent = "❌";
-      status.classList.add("missed");
-    } else if (diff > 0) {
-      status.textContent = `En ${Math.floor(diff / 60000)} min`;
-      allDone = false;
-    } else if (late < 40 * 60000) {
-      const btn = document.createElement("button");
-      btn.textContent = "Ir a Comer";
-      btn.onclick = () => {
-        mealStatus[i] = "done";
-        submitMeal(i, "comido");
-        showMeals();
-        window.open("https://glitch.com/edit/#!/temporizador-para-nenes", "_blank");
-      };
-      div.appendChild(btn);
-      allDone = false;
+function displayMeals() {
+  mealsDiv.innerHTML='';
+  const now=new Date();
+  let allDone=true;
+  meals.forEach((t,i)=>{
+    const mi=parseTime(t), diff=mi-now, late = now-mi;
+    const b=document.createElement('div');b.className='meal-block';
+    b.innerHTML=`<div>Comida ${i+1}: ${stdTime(t)}</div>`;
+    const st=document.createElement('div'); st.className='status';
+    if(statusArr[i]==='done'){ st.textContent='✅'; st.classList.add('done') }
+    else if(statusArr[i]==='missed'){ st.textContent='❌'; st.classList.add('missed') }
+    else if(diff>0){ st.textContent = `En ${Math.ceil(diff/60000)} min`; allDone=false; }
+    else if(late <= 40*60000){
+      const btn=document.createElement('button');
+      btn.textContent='Ir a Comer';
+      btn.onclick = ()=>{ statusArr[i]='done'; submitMeal(i,'comido'); displayMeals(); window.open('https://glitch.com/edit/#!/temporizador-para-nenes','_blank'); };
+      b.appendChild(btn);
+      st.textContent='';
+      allDone=false;
     } else {
-      mealStatus[i] = "missed";
-      submitMeal(i, "perdido");
-      status.textContent = "❌";
-      status.classList.add("missed");
+      statusArr[i]='missed';
+      submitMeal(i,'perdido');
+      st.textContent='❌'; st.classList.add('missed');
     }
-
-    div.appendChild(status);
-    mealsDiv.appendChild(div);
+    b.appendChild(st); mealsDiv.appendChild(b);
   });
-
-  if (allDone) {
-    cerradaVideo.style.display = "block";
-    cerradaScreen.style.display = "flex";
+  if(allDone){
+    wakeBtn.style.display='none';
+    mealsDiv.style.display='none';
+    cerradaVid.style.display='block';
+    cerradaScreen.style.display='flex';
+    cerradaVid.play();
   }
 }
 
-function loadSheetData() {
-  fetch(SHEET_CSV_URL)
-    .then(res => res.text())
-    .then(csv => {
-      const rows = csv.trim().split('\n').map(r => r.split(','));
-      const latest = rows[rows.length - 1];
-      const dateStr = new Date().toISOString().split("T")[0];
-      if (latest[1] === dateStr && latest[6] && latest[7] && latest[8] && latest[9]) {
-        meals = [latest[6], latest[7], latest[8], latest[9]];
-        mealStatus = ["pending", "pending", "pending", "pending"];
-        startLoop();
-        wakeButton.style.display = "none";
-      } else {
-        mealsDiv.innerHTML = "<p>La cocina estará abierta a las 7 AM.</p>";
-        wakeButton.style.display = "inline-block";
-      }
-    })
-    .catch(() => {
-      mealsDiv.innerHTML = "<p>⚠️ Error cargando los horarios.</p>";
-    });
+function loadCSV(){
+  fetch(CSV_URL).then(r=>r.text()).then(csv=>{
+    const rows=csv.trim().split('\n').map(r=>r.split(','));
+    const last=rows[rows.length-1];
+    const today=new Date().toISOString().split('T')[0];
+    if(last[1]===today && last.length>=10){
+      meals = [last[6],last[7],last[8],last[9]]; statusArr=['','','',''];
+      wakeBtn.style.display='none';
+      displayMeals();
+      setInterval(displayMeals,60000);
+    } else {
+      wakeBtn.style.display = new Date().getHours()>=7?'inline-block':'none';
+      if(new Date().getHours()<7) mealsDiv.innerHTML ='<p>La cocina estará abierta a las 7 AM.</p>';
+    }
+  }).catch(_=>mealsDiv.innerHTML='<p>⚠️ Error cargando horarios.</p>');
 }
 
-function startLoop() {
-  showMeals();
-  setInterval(showMeals, 60000);
-}
-
-wakeButton.onclick = () => {
-  const now = new Date();
-  const dateStr = now.toISOString().split("T")[0];
-
-  const data = new URLSearchParams();
-  data.append("entry.1742440048", dateStr);
-  data.append("entry.530673272", "Auto");
-
-  fetch(GOOGLE_FORM_URL, {
-    method: 'POST',
-    mode: 'no-cors',
-    body: data
-  }).then(() => {
-    wakeButton.style.display = "none";
-    setTimeout(loadSheetData, 5000);
-  });
+wakeBtn.onclick = ()=>{
+  const fd=new URLSearchParams();
+  fd.append('entry.1742440048',new Date().toISOString().split('T')[0]);
+  fd.append('entry.530673272','Auto');
+  fetch(FORM_URL,{method:'POST',mode:'no-cors',body:fd})
+    .then(()=>setTimeout(loadCSV,4000));
 };
 
-// On page load, check if we already submitted today
-(function checkWake() {
-  const now = new Date();
-  const todayStr = now.toISOString().split("T")[0];
-
-  fetch(SHEET_CSV_URL)
-    .then(res => res.text())
-    .then(csv => {
-      const rows = csv.trim().split('\n').map(r => r.split(','));
-      const latest = rows[rows.length - 1];
-      if (latest[1] === todayStr && latest[6] && latest[7] && latest[8] && latest[9]) {
-        meals = [latest[6], latest[7], latest[8], latest[9]];
-        mealStatus = ["pending", "pending", "pending", "pending"];
-        startLoop();
-        wakeButton.style.display = "none";
-      } else if (now.getHours() >= 7) {
-        wakeButton.style.display = "inline-block";
-      } else {
-        mealsDiv.innerHTML = "<p>La cocina estará abierta a las 7 AM.</p>";
-      }
-    })
-    .catch(() => {
-      mealsDiv.innerHTML = "<p>⚠️ Error cargando los horarios.</p>";
-    });
-})();
+window.onload = loadCSV;
 </script>
 </body>
 </html>
