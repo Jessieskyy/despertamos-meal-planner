@@ -1,14 +1,12 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Planificador de Comidas</title>
   <style>
     html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
+      margin: 0; padding: 0;
+      width: 100%; height: 100%;
       overflow: hidden;
       font-family: 'Comic Sans MS', cursive;
       background: black;
@@ -122,6 +120,7 @@ function submitMeal(i, st) {
   PARTS.forEach(p => fd.append('entry.916852138',p));
   fetch(FORM_URL,{method:'POST',mode:'no-cors',body:fd});
 }
+
 function displayMeals(){
   // Hide cocina cerrada by default; only show at the end
   cerradaVid.style.display = 'none';
@@ -141,7 +140,12 @@ function displayMeals(){
     else if(late <= 40*60000){
       const btn=document.createElement('button');
       btn.textContent='Ir a Comer';
-      btn.onclick = ()=>{ statusArr[i]='done'; submitMeal(i,'comido'); displayMeals(); window.open('https://glitch.com/edit/#!/temporizador-para-nenes','_blank'); };
+      btn.onclick = ()=>{ 
+        statusArr[i]='done'; 
+        submitMeal(i,'comido'); 
+        displayMeals(); 
+        window.open('https://glitch.com/edit/#!/temporizador-para-nenes','_blank'); 
+      };
       b.appendChild(btn);
       st.textContent='';
       allDone=false;
@@ -153,10 +157,10 @@ function displayMeals(){
     b.appendChild(st); mealsDiv.appendChild(b);
   });
   if(allDone){
-    wakeBtn.style.display='none';
-    mealsDiv.style.display='none';
-    cerradaVid.style.display='block';
-    cerradaScreen.style.display='flex';
+    wakeBtn.style.display = 'none';
+    mealsDiv.style.display = 'none';
+    cerradaVid.style.display = 'block';
+    cerradaScreen.style.display = 'flex';
     cerradaVid.play();
   }
 }
@@ -206,11 +210,12 @@ function loadCSV(){
   });
 }
 
-  const fd=new URLSearchParams();
-  fd.append('entry.1742440048',new Date().toISOString().split('T')[0]);
-  fd.append('entry.530673272','Auto');
-  fetch(FORM_URL,{method:'POST',mode:'no-cors',body:fd})
-    .then(()=>setTimeout(loadCSV,4000));
+wakeBtn.onclick = () => {
+  const fd = new URLSearchParams();
+  fd.append('entry.1742440048', new Date().toISOString().split('T')[0]);
+  fd.append('entry.530673272', 'Auto');
+  fetch(FORM_URL, { method: 'POST', mode: 'no-cors', body: fd })
+    .then(() => setTimeout(loadCSV, 4000));
 };
 
 window.onload = loadCSV;
