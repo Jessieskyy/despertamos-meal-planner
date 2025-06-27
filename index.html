@@ -105,8 +105,8 @@
 </head>
 <body>
 
-<video id="background" autoplay muted loop src="https://jessieskyy.github.io/despertamos-meal-planner/frog_picnic.mp4"></video>
-<video id="cerrada-video" autoplay muted loop src="https://jessieskyy.github.io/despertamos-meal-planner/cocina_cerrada.mp4"></video>
+<video id="background" autoplay muted loop src="frog_picnic.mp4"></video>
+<video id="cerrada-video" autoplay muted loop src="cocina_cerrada.mp4"></video>
 <div id="cocina-cerrada">Cocina Cerrada</div>
 
 <button id="wake-button">¡Despertamos!</button>
@@ -114,7 +114,7 @@
 
 <!-- Loader -->
 <div id="loader-container">
-  <img src="https://jessieskyy.github.io/despertamos-meal-planner/fat_frog.png" alt="Loading frog" />
+  <img src="fat_frog.png" alt="Loading frog" />
   <div id="loader-text">Cargando horarios...</div>
 </div>
 
@@ -238,87 +238,11 @@
     try {
       const response = await fetch(CSV_URL);
       const csv = await response.text();
-      const rows = csv.trim().split('\n').map(r => r.split(','));
+      console.log('Raw CSV:', csv.substring(0, 200));
+      const rows = csv.trim().split('\n').map(r => r.split(',').map(f => f.trim().replace(/^"|"$/g, '')));
       const last = rows[rows.length - 1];
       const today = getTodayStr();
       console.log('CSV last row:', last);
 
       if (last[1] === today && last[6] && last[7] && last[8] && last[9]) {
-        meals = [last[6], last[7], last[8], last[9]];
-        statusArr = ['', '', '', ''];
-        console.log('Loaded meals:', meals);
-        wakeBtn.style.display = 'none';
-        wakeBtn.disabled = false;
-        displayMeals();
-        if (refreshInterval) clearInterval(refreshInterval);
-        refreshInterval = setInterval(displayMeals, 60000);
-        loaderContainer.style.display = 'none';
-        return true;
-      } else {
-        if (retries > 0) {
-          console.log(`Waiting for sheet update... (${retries} retries left)`);
-          setTimeout(() => tryLoadCSV(retries - 1), 2000);
-        } else {
-          console.warn('No valid meal data found after retries.');
-          meals = [];
-          statusArr = [];
-          wakeBtn.disabled = false;
-
-          if (!hasPressedWakeToday()) {
-            wakeBtn.style.display = 'inline-block';
-            mealsDiv.innerHTML = '';
-          } else {
-            mealsDiv.innerHTML = '<p>⚠️ No se encontraron horarios válidos hoy.</p>';
-            wakeBtn.style.display = 'none';
-          }
-
-          cerradaVid.style.display = 'none';
-          cerradaScreen.style.display = 'none';
-          loaderContainer.style.display = 'none';
-          return false;
-        }
-      }
-    } catch (err) {
-      console.error('CSV Fetch Error:', err);
-      meals = [];
-      statusArr = [];
-      wakeBtn.style.display = 'inline-block';
-      wakeBtn.disabled = false;
-      mealsDiv.innerHTML = '<p>⚠️ Error cargando horarios.</p>';
-      cerradaVid.style.display = 'none';
-      cerradaScreen.style.display = 'none';
-      loaderContainer.style.display = 'none';
-      return false;
-    }
-  }
-
-  wakeBtn.onclick = () => {
-    wakeBtn.disabled = true;
-    setWakePressedToday();
-    console.log('Wake button pressed, sending form...');
-    const fd = new URLSearchParams();
-    fd.append('entry.1742440048', getTodayStr());
-    fd.append('entry.530673272', 'Auto');
-    fetch(FORM_URL, { method: 'POST', mode: 'no-cors', body: fd });
-    // Wait 15 seconds before fetching sheet data to allow backend to update
-    setTimeout(() => tryLoadCSV(5), 15000);
-  };
-
-  window.onload = () => {
-    if (hasPressedWakeToday()) {
-      console.log('Wake button already pressed today, loading CSV...');
-      wakeBtn.style.display = 'none';
-      tryLoadCSV(5);
-    } else {
-      console.log('Wake button NOT pressed today, showing button...');
-      wakeBtn.style.display = 'inline-block';
-      mealsDiv.innerHTML = '';
-      cerradaVid.style.display = 'none';
-      cerradaScreen.style.display = 'none';
-      loaderContainer.style.display = 'none';
-    }
-  };
-</script>
-
-</body>
-</html>
+        meals = [
